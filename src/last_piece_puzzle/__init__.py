@@ -29,10 +29,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument(
         "--method",
         choices=METHODS,
-        default="fastsearch",
+        default="dlx",
         help=(
             "dlx: exact cover, fastest; fastsearch: fast depth-first search;"
-            " search: the original port of the C++ (default: fastsearch)"
+            " search: the original port of the C++ (default: dlx)"
         ),
     )
     args = parser.parse_args(argv)

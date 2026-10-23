@@ -141,6 +141,7 @@ def methods(monkeypatch: pytest.MonkeyPatch) -> list[object]:
 @pytest.mark.parametrize(
     ("argv", "method", "last_line"),
     [
+        ([], "dlx", DLX_LINE),
         (["--method", "dlx"], "dlx", DLX_LINE),
         (["--method", "search"], "search", SEARCH_LINE),
     ],

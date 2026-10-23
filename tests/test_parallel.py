@@ -160,7 +160,7 @@ def test_cli_passes_workers(
 
     monkeypatch.setattr(solver, "solve", fake_solve)
     monkeypatch.setattr(os, "process_cpu_count", lambda: 7)
-    main(["golfing_madness", *argv])
+    main(["golfing_madness", "--method", "search", *argv])
     assert seen == [workers]
     assert capsys.readouterr().out.rstrip().endswith(f"{shown}.")
 

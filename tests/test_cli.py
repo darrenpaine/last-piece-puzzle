@@ -113,7 +113,7 @@ def test_prints_found_lines_key_once_and_numbered_solutions(
     first = FoundSolution(Solution(("EEEHJJJJ",)), "E", 10)
     second = FoundSolution(Solution(("AKKKKNNF",)), "A", 20)
     stub_solutions(monkeypatch, (first, second))
-    main(["golfing_madness"])
+    main(["golfing_madness", "--method", "search"])
     out = capsys.readouterr().out
     lines = [
         "Solution 1 found starting with piece E at move 10",
@@ -137,7 +137,7 @@ def test_prints_only_no_solutions_line(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     stub_solutions(monkeypatch, ())
-    main(["golfing_madness"])
+    main(["golfing_madness", "--method", "search"])
     out = capsys.readouterr().out
     assert "Key:" not in out
     assert re.search(r"No solutions found in 99 moves, \d+\.\d s \(\d+ workers?\)\.\n$", out)
