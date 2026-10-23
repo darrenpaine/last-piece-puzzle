@@ -27,7 +27,7 @@ Done when: the fixture is recorded and a test can load and check it (8×8, lette
 Spec: SPEC-0003.
 Done when: the code produces the same solution as the C++ code.
 
-3. Check that the Python version produces the C++ solution.
+3. (Done) Check that the Python version produces the C++ solution.
    - Fast tests: the fit checker rejects wrong placements (a piece off the board, overlapping pieces,
      touching tabs that clash, a tab that clashes with the border, the wrong rotation).
    - Seeded test: start the search with the known start piece at (0,0) and check the result against the fixture.
@@ -48,7 +48,9 @@ Done when: all tests pass and the piece definitions are in the puzzles folder.
 
 6. Find all solutions, not just the first.
    - Reset the board properly between start pieces, and keep searching after each solution is found.
-   - Record every solution as a fixture.
+   - Record every solution as a fixture (including the A and C start solutions).
+   - D and H look the same after a 180° turn (tabs included), so the same board is found more than once:
+     remove the duplicates.
 Spec: SPEC-0007.
 Done when: every start piece has been tried, and more than one solution is recorded (one for each of the 3–5 start pieces that work).
 
