@@ -1,6 +1,6 @@
 # SPEC-0003: Python port of the solver
 
-Status: Reviewed
+Status: Done
 
 ## Goal
 A Python solver that follows the same search as `cpp/main.cpp` and finds the same first solution

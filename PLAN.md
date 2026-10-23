@@ -20,7 +20,7 @@ Done when: `uv run pre-commit run --all-files` and `uv run pytest` pass locally 
 Spec: SPEC-0002.
 Done when: the fixture is recorded and a test can load and check it (8×8, letters A–N, each piece's cell count matches).
 
-2. Convert the C++ to Python. Replace pointers with object references.
+2. (Done) Convert the C++ to Python. Replace pointers with object references.
    - Keep the search order. `InitPieces` adds each piece to the front of the list, so pieces are tried
      N→A. The first solution found depends on this order.
    - Use dataclasses and a tab `Enum` (`IN`/`OUT`/`NONE` for 0/1/-1) from the start.
