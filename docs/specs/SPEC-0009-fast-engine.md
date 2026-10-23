@@ -29,8 +29,9 @@ With plain ints (small ints are never reference-counted in 3.14), threads now sc
 build, but processes are still a little faster and work on the standard build. **Processes stay.**
 
 ### Not tried
-- **Exact cover (DLX):** it searches in a different order, so the move counts and the C++ comparison would
-  no longer hold. With the gains above, it does not seem worth it.
+- **Exact cover (DLX):** tried afterwards in `build/` (about 0.07 s single process with bitsets). It searches in
+  a different order, so the move counts and the C++ comparison do not hold. It is specified separately as
+  an alternative solver in SPEC-0010; this spec keeps the depth-first search.
 - **GPU:** a branching backtracking search with few, small, uneven subtrees suits a GPU poorly, and it
   would need a new dependency (e.g. CUDA via CuPy or Numba). With about 0.5 s expected on CPU workers,
   there is little to gain.
