@@ -1,6 +1,6 @@
 # SPEC-0002: Record the C++ solution
 
-Status: Draft
+Status: Reviewed
 
 ## Goal
 Record the solution produced by the original C++ solver (`cpp/main.cpp`, v31) for the
@@ -26,7 +26,7 @@ A A A I I I B B
 ```
 
 ## Inputs / Outputs
-- Output: `tests/fixtures/golfing_madness_solution.txt`, a text file that is never edited by hand
+- Output: `tests/fixtures/golfing_madness_solution_1.txt`, a text file that is never edited by hand
   to make a test pass.
   - Lines starting with `#` are metadata, written as `# key: value`. The keys are `source`,
     `start_piece`, `moves` and `runtime`.
