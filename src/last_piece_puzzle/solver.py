@@ -1,13 +1,20 @@
-"""Depth-first solver ported from cpp/main.cpp (SPEC-0003, SPEC-0005, SPEC-0006, SPEC-0007)."""
+"""Depth-first solver ported from cpp/main.cpp (SPEC-0003, SPEC-0005 to SPEC-0007, SPEC-0009).
+
+`Solver` is the original board search, kept as the readable reference. `FastSolver` (engine.py) runs
+the same search faster and is the default for `solve`.
+"""
 
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from typing import Protocol
+from typing import Literal, Protocol
 
 from last_piece_puzzle.board import Board
 from last_piece_puzzle.pieces import Piece, Placement
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.solution import Solution
+
+# "fastsearch" is `FastSolver`, "search" is `Solver`: the same search, so the same results.
+Method = Literal["fastsearch", "search"]
 
 
 @dataclass(frozen=True)
@@ -131,8 +138,14 @@ def solve(
     on_solution: SolutionCallback | None = None,
     all_rotations: bool = False,
     workers: int | None = None,
+    method: Method = "fastsearch",
 ) -> SolveResult:
-    return Solver(puzzle, all_rotations).solve(start_pieces, on_start, on_solution, workers)
+    solver_class: type[Solver] = Solver
+    if method == "fastsearch":
+        from last_piece_puzzle.engine import FastSolver  # imports this module
+
+        solver_class = FastSolver
+    return solver_class(puzzle, all_rotations).solve(start_pieces, on_start, on_solution, workers)
 
 
 def check_solution(puzzle: Puzzle, grid: Sequence[str]) -> bool:

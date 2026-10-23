@@ -6,6 +6,9 @@ from collections.abc import Callable, Sequence
 from last_piece_puzzle import puzzles, solver
 from last_piece_puzzle.output import ConsoleOutput, Output
 from last_piece_puzzle.puzzle import Puzzle
+from last_piece_puzzle.solver import Method
+
+METHODS: tuple[Method, ...] = ("fastsearch", "search")
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -23,6 +26,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         default=cpus,
         help=f"worker processes for the search, 1 to {cpus} (default: {cpus}; 1 = single process)",
     )
+    parser.add_argument(
+        "--method",
+        choices=METHODS,
+        default="fastsearch",
+        help="fastsearch: fast depth-first search; search: the original port (default: fastsearch)",
+    )
     args = parser.parse_args(argv)
     if args.list:
         for key in keys:
@@ -35,7 +44,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         puzzle = puzzles.load(chosen)
     except ValueError as error:
         parser.exit(1, f"last-piece-puzzle: {error}\n")
-    solve_puzzle(puzzle, args.workers)
+    solve_puzzle(puzzle, args.workers, method=args.method)
 
 
 def worker_count(cpus: int) -> Callable[[str], int]:
@@ -78,12 +87,18 @@ def choose(keys: Sequence[str]) -> str | None:
         print("Not a valid choice.")
 
 
-def solve_puzzle(puzzle: Puzzle, workers: int = 1, output: Output | None = None) -> None:
+def solve_puzzle(
+    puzzle: Puzzle, workers: int = 1, output: Output | None = None, method: Method = "fastsearch"
+) -> None:
     """Solve the puzzle, sending progress and results to `output` (default: the console)."""
     output = output or ConsoleOutput()
     output.header(puzzle)
     started = time.perf_counter()
     result = solver.solve(
-        puzzle, on_start=output.on_start, on_solution=output.on_solution, workers=workers
+        puzzle,
+        on_start=output.on_start,
+        on_solution=output.on_solution,
+        workers=workers,
+        method=method,
     )
     output.finish(puzzle, result, time.perf_counter() - started, workers)

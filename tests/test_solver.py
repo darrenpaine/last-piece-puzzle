@@ -1,12 +1,12 @@
 import pytest
 
-from last_piece_puzzle import solver
+from last_piece_puzzle import METHODS, solver
 from last_piece_puzzle.board import Board
 from last_piece_puzzle.pieces import Bit, Border, Piece, Tab
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
 from last_piece_puzzle.solution import Solution
-from last_piece_puzzle.solver import FoundSolution, SolveResult
+from last_piece_puzzle.solver import FoundSolution, Method, SolveResult
 
 IN, OUT, NONE = Tab.IN, Tab.OUT, Tab.NONE
 ALL_BITS = [bit for piece in PUZZLE.pieces for bit in piece.bits]
@@ -95,11 +95,16 @@ def test_fits_checks_neighbour_tab(east: Tab, expected: bool) -> None:
 @pytest.mark.spec("SPEC-0007", "B-0003")
 @pytest.mark.parametrize(("tab", "solved"), [(OUT, True), (IN, False)])
 @pytest.mark.parametrize(("all_rotations", "moves"), [(False, 2), (True, 8)])
-def test_solve_one_cell_board(tab: Tab, solved: bool, all_rotations: bool, moves: int) -> None:
+@pytest.mark.parametrize("method", METHODS)
+def test_solve_one_cell_board(
+    tab: Tab, solved: bool, all_rotations: bool, moves: int, method: Method
+) -> None:
     # The bit has the same tab on every side, so it has 1 distinct rotation instead of 4.
     border = Border(top=(IN,), left=(IN,), right=(IN,), bottom=(IN,))
     piece = Piece("A", "single", (Bit(0, 0, tab, tab, tab, tab),))
-    result = solver.solve(Puzzle("one cell", (piece,), border), all_rotations=all_rotations)
+    result = solver.solve(
+        Puzzle("one cell", (piece,), border), all_rotations=all_rotations, method=method
+    )
     if solved:
         assert result.solutions[0] == FoundSolution(Solution(("A",)), "A", 1, moves // 2)
         assert result.moves == moves
@@ -114,23 +119,29 @@ ALL_OUT = Bit(0, 0, OUT, OUT, OUT, OUT)
 @pytest.mark.spec("SPEC-0003", "B-0005")
 @pytest.mark.spec("SPEC-0007", "B-0003")
 @pytest.mark.parametrize(("all_rotations", "moves"), [(False, 4), (True, 16)])
-def test_solve_backtracks_and_counts_moves(all_rotations: bool, moves: int) -> None:
+@pytest.mark.parametrize("method", METHODS)
+def test_solve_backtracks_and_counts_moves(all_rotations: bool, moves: int, method: Method) -> None:
     # Two all-OUT bits clash with each other, so every start fails: per start piece,
     # each rotation tried costs a place and a remove.
     pieces = (Piece("A", "a", (ALL_OUT,)), Piece("B", "b", (ALL_OUT,)))
-    result = solver.solve(Puzzle("clash", pieces, ONE_BY_TWO), all_rotations=all_rotations)
+    result = solver.solve(
+        Puzzle("clash", pieces, ONE_BY_TWO), all_rotations=all_rotations, method=method
+    )
     assert result == SolveResult((), 0, moves)
 
 
 @pytest.mark.spec("SPEC-0003", "B-0005")
 @pytest.mark.spec("SPEC-0007", "B-0001")
-def test_solve_tries_pieces_in_reverse_and_carries_on() -> None:
+@pytest.mark.parametrize("method", METHODS)
+def test_solve_tries_pieces_in_reverse_and_carries_on(method: Method) -> None:
     # B is tried first and only fits at (0, 0) after 3 rotations (east tab IN); A then fits.
     # The search carries on: starting with A, B fits on its right without turning.
     b = Bit(0, 0, north=OUT, west=IN, south=OUT, east=OUT)
     pieces = (Piece("A", "a", (ALL_OUT,)), Piece("B", "b", (b,)))
     started: list[str] = []
-    result = solver.solve(Puzzle("rotate", pieces, ONE_BY_TWO), on_start=started.append)
+    result = solver.solve(
+        Puzzle("rotate", pieces, ONE_BY_TWO), on_start=started.append, method=method
+    )
     assert result == SolveResult(
         (FoundSolution(Solution(("BA",)), "B", 2), FoundSolution(Solution(("AB",)), "A", 6)), 2, 8
     )

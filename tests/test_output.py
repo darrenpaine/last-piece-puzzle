@@ -5,7 +5,13 @@ from last_piece_puzzle.output import Output
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
 from last_piece_puzzle.solution import Solution
-from last_piece_puzzle.solver import FoundSolution, SolutionCallback, SolveResult, StartCallback
+from last_piece_puzzle.solver import (
+    FoundSolution,
+    Method,
+    SolutionCallback,
+    SolveResult,
+    StartCallback,
+)
 
 FOUND = FoundSolution(Solution(("A",)), "A", 5)
 RESULT = SolveResult((FOUND,), 1, 9)
@@ -36,6 +42,7 @@ def test_solve_puzzle_sends_everything_to_output(monkeypatch: pytest.MonkeyPatch
         on_start: StartCallback,
         on_solution: SolutionCallback,
         workers: int,
+        method: Method,
     ) -> SolveResult:
         on_start("B")
         on_start("A")

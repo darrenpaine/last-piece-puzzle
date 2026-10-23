@@ -141,3 +141,27 @@ def test_prints_only_no_solutions_line(
     out = capsys.readouterr().out
     assert "Key:" not in out
     assert re.search(r"No solutions found in 99 moves, \d+\.\d s \(\d+ workers?\)\.\n$", out)
+
+
+@pytest.mark.spec("SPEC-0009", "AT-0004")
+@pytest.mark.parametrize(
+    ("argv", "method"), [([], "fastsearch"), (["--method", "search"], "search")]
+)
+def test_cli_passes_method(monkeypatch: pytest.MonkeyPatch, argv: list[str], method: str) -> None:
+    seen: list[object] = []
+
+    def fake_solve(puzzle: Puzzle, *args: object, **kwargs: object) -> SolveResult:
+        seen.append(kwargs.get("method"))
+        return SolveResult((), 0, 0)
+
+    monkeypatch.setattr(solver, "solve", fake_solve)
+    main(["golfing_madness", *argv])
+    assert seen == [method]
+
+
+@pytest.mark.spec("SPEC-0009", "AT-0004")
+def test_cli_rejects_unknown_method(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["golfing_madness", "--method", "nope"])
+    assert exit_info.value.code == 2
+    assert "invalid choice" in capsys.readouterr().err

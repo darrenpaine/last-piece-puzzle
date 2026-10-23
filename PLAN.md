@@ -60,9 +60,10 @@ Done when: all 5 Golfing Madness solutions are found, each once, and recorded as
 Spec: SPEC-0008.
 Done when: it works and is shown to be faster than the step 6 baseline.
 
-8. Investigate speed-ups. A GPU suits a branching backtracking search poorly, so try algorithm changes first:
+8. (Done) Investigate speed-ups. A GPU suits a branching backtracking search poorly, so try algorithm changes first:
    precompute every orientation of each piece, use bitboards, or treat it as an exact-cover problem (DLX)
    with extra tab checks. Try a GPU only if these are not enough.
+Spec: SPEC-0009.
 
 9. Investigate generating a puzzle definition for another puzzle in the series from a photo. AI would
    identify the edges and pieces, and name each piece from the picture on it. This needs approval
