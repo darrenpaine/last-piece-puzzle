@@ -46,13 +46,14 @@ Done when: the unit tests pass and the solution is still produced.
 Spec: SPEC-0006.
 Done when: all tests pass and the piece definitions are in the puzzles folder.
 
-6. Find all solutions, not just the first.
-   - Reset the board properly between start pieces, and keep searching after each solution is found.
+6. Find all solutions by default, not just the first.
+   - `solve` carries on after each full board and returns every distinct solution.
+   - Pieces that look the same after a turn (shape and tabs, e.g. D and H after 180°) only try their
+     distinct rotations, so each solution is found once. A C++ mode tries all 4 rotations for the C++ checks.
+   - The CLI prints one line per solution found, then the key once, the numbered solutions, and the moves and time taken.
    - Record every solution as a fixture (including the A and C start solutions).
-   - D and H look the same after a 180° turn (tabs included), so the same board is found more than once:
-     remove the duplicates.
 Spec: SPEC-0007.
-Done when: every start piece has been tried, and more than one solution is recorded (one for each of the 3–5 start pieces that work).
+Done when: all 5 Golfing Madness solutions are found, each once, and recorded as fixtures.
 
 7. Investigate running the search in parallel, e.g. one start piece per worker, each with its own Board
    and pieces, using `multiprocessing` or the free-threaded build of Python 3.14.
