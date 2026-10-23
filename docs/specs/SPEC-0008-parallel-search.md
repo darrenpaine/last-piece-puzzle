@@ -1,6 +1,6 @@
 # SPEC-0008: Parallel search
 
-Status: Done
+Status: Reviewed
 
 ## Goal
 Run the search on several CPU cores at once, so a full solve takes a fraction of the step 6 time, while
@@ -47,6 +47,17 @@ spec uses processes. Threads can be tried again after step 8.
 - CLI: `last-piece-puzzle [PUZZLE] [--workers N]`. The default is the number of CPUs available
   (`os.process_cpu_count()`), and `--workers 1` uses a single process. The final line names the worker
   count: `5 solutions found in 1430150 moves, 2.1 s (16 workers).`
+- Added after PR review:
+  - `solver.py` defines the callback types as Protocols: `StartCallback` (`(letter: str) -> None`) and
+    `SolutionCallback` (`(number: int, found: FoundSolution) -> None`). `solve`, `Solver.solve` and
+    `parallel.solve` use them.
+  - New module `src/last_piece_puzzle/output.py`:
+    - an abstract base class `Output` with `header(puzzle)`, `on_start(letter)`, `on_solution(number, found)`
+      and `finish(puzzle, result, seconds, workers)`;
+    - `ConsoleOutput(Output)`, which prints the current CLI text.
+  - The CLI's `solve_and_print` becomes `solve_puzzle(puzzle, workers, output)`. It only times the search,
+    passing `output.on_start` / `output.on_solution` to `solve` and calling `header` / `finish`. All
+    printing for a solve is in `ConsoleOutput`.
 
 ## Behaviour
 - B-0001: Split. Starting from the empty board, the search tree is expanded placement by placement in the
@@ -66,6 +77,10 @@ spec uses processes. Threads can be tried again after step 8.
   They come in bursts as results arrive, not live.
 - B-0005: `all_rotations` works in parallel too.
 - B-0006: Worker errors are raised in the parent, not swallowed.
+- B-0007: `--workers` must be from 1 up to `os.process_cpu_count()`. Anything else exits with an argparse
+  error (status 2): `must be between 1 and N`. (Added after PR review.)
+- B-0008: `solve_puzzle` calls `output.header`, then `on_start` / `on_solution` during the search, then
+  `finish` once, with the result, the time taken and the worker count. (Added after PR review.)
 
 ## Acceptance tests
 - AT-0001: For the small test puzzles (1×1, 1×2 with no solution, 1×2 with two solutions, the symmetric
@@ -81,6 +96,12 @@ spec uses processes. Threads can be tried again after step 8.
 - AT-0005 (`slow`, skipped below 4 CPUs): a full solve with 4 workers is at least 2× faster than with 1.
 - AT-0006: `main(["golfing_madness", "--workers", "3"])` passes `workers=3` to `solve` (stubbed) and
   prints `(3 workers)` in the final line. Without `--workers`, it passes `os.process_cpu_count()`.
+
+- AT-0007: `--workers 0` and `--workers N+1` (N = CPUs, patched to 7) each exit with status 2 and the
+  B-0007 message; `--workers 7` is accepted (B-0007).
+- AT-0008: `solve_puzzle` with a recording `Output` subclass and a stubbed `solve` gets `header`,
+  the callbacks in order and one `finish` with the result and worker count. The existing CLI output tests
+  still pass with `ConsoleOutput` (B-0008).
 
 ## Out of scope
 - A thread-based option for the free-threaded build. Measured above, it is slower than processes for now;
