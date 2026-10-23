@@ -12,3 +12,4 @@ Status: Draft → Reviewed → Done.
 | SPEC-0005 | Object model              | 4         | Done   |
 | SPEC-0006 | Puzzle definitions        | 5         | Done   |
 | SPEC-0007 | Find all solutions        | 6         | Done   |
+| SPEC-0008 | Parallel search           | 7         | Draft  |

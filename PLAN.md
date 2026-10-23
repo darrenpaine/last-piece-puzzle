@@ -57,6 +57,7 @@ Done when: all 5 Golfing Madness solutions are found, each once, and recorded as
 
 7. Investigate running the search in parallel, e.g. one start piece per worker, each with its own Board
    and pieces, using `multiprocessing` or the free-threaded build of Python 3.14.
+Spec: SPEC-0008.
 Done when: it works and is shown to be faster than the step 6 baseline.
 
 8. Investigate speed-ups. A GPU suits a branching backtracking search poorly, so try algorithm changes first:
