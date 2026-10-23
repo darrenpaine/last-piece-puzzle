@@ -1,14 +1,15 @@
+import re
 from pathlib import Path
 
 import pytest
 from test_parallel import SMALL_PUZZLES
 
-from last_piece_puzzle import solver
+from last_piece_puzzle import main, solver
 from last_piece_puzzle.board import Board
 from last_piece_puzzle.dlx import CoverTable, DlxSolver, bits
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
-from last_piece_puzzle.solution import load_solution
+from last_piece_puzzle.solution import Solution, load_solution
 from last_piece_puzzle.solver import FoundSolution, SolveResult
 
 GRIDS = [
@@ -117,3 +118,61 @@ def test_solve_defaults_to_search() -> None:
     result = solver.solve(SMALL_PUZZLES["two-solutions"])
     assert result.moves == 8  # DFS counts every place and remove
     assert solver.solve(SMALL_PUZZLES["two-solutions"], method="dlx").moves == 4  # rows chosen
+
+
+DLX_LINE = r"1 solution found in 7 rows chosen, \d+\.\d s \(DLX\)\."
+SEARCH_LINE = r"1 solution found in 7 moves, \d+\.\d s \(\d+ workers?\)\."
+
+
+@pytest.fixture
+def methods(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    """Stub the solver with one solution found in 7 steps; record the method asked for."""
+    seen: list[object] = []
+
+    def fake_solve(puzzle: Puzzle, *args: object, **kwargs: object) -> SolveResult:
+        seen.append(kwargs.get("method"))
+        return SolveResult((FoundSolution(Solution(("A",)), "A", 1),), 1, 7)
+
+    monkeypatch.setattr(solver, "solve", fake_solve)
+    return seen
+
+
+@pytest.mark.spec("SPEC-0010", "AT-0005")
+@pytest.mark.parametrize(
+    ("argv", "method", "last_line"),
+    [
+        (["--method", "dlx"], "dlx", DLX_LINE),
+        (["--method", "search"], "search", SEARCH_LINE),
+    ],
+)
+def test_cli_method(
+    methods: list[object],
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    method: str,
+    last_line: str,
+) -> None:
+    main(["golfing_madness", *argv])
+    assert methods == [method]
+    assert re.fullmatch(last_line, capsys.readouterr().out.splitlines()[-1])
+
+
+@pytest.mark.spec("SPEC-0010", "AT-0005")
+def test_cli_dlx_no_solutions_line(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(solver, "solve", lambda *args, **kwargs: SolveResult((), 0, 3))
+    main(["golfing_madness", "--method", "dlx"])
+    last = capsys.readouterr().out.splitlines()[-1]
+    assert re.fullmatch(r"No solutions found in 3 rows chosen, \d+\.\d s \(DLX\)\.", last)
+
+
+@pytest.mark.spec("SPEC-0010", "AT-0005")
+def test_cli_unknown_method_exits_2(
+    methods: list[object], capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["golfing_madness", "--method", "nope"])
+    assert exit_info.value.code == 2
+    assert "invalid choice" in capsys.readouterr().err
+    assert methods == []

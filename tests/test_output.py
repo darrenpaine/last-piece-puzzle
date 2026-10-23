@@ -30,8 +30,10 @@ class RecordingOutput(Output):
     def on_solution(self, number: int, found: FoundSolution, /) -> None:
         self.calls.append(("solution", number, found))
 
-    def finish(self, puzzle: Puzzle, result: SolveResult, seconds: float, workers: int) -> None:
-        self.calls.append(("finish", puzzle.name, result, workers))
+    def finish(
+        self, puzzle: Puzzle, result: SolveResult, seconds: float, workers: int, method: Method
+    ) -> None:
+        self.calls.append(("finish", puzzle.name, result, workers, method))
 
 
 @pytest.mark.spec("SPEC-0008", "AT-0008")
@@ -44,6 +46,7 @@ def test_solve_puzzle_sends_everything_to_output(monkeypatch: pytest.MonkeyPatch
         workers: int,
         method: Method,
     ) -> SolveResult:
+        assert method == "dlx"
         on_start("B")
         on_start("A")
         on_solution(1, FOUND)
@@ -51,13 +54,13 @@ def test_solve_puzzle_sends_everything_to_output(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(solver, "solve", fake_solve)
     output = RecordingOutput()
-    solve_puzzle(PUZZLE, workers=3, output=output)
+    solve_puzzle(PUZZLE, workers=3, output=output, method="dlx")
     assert output.calls == [
         ("header", "Golfing Madness"),
         ("start", "B"),
         ("start", "A"),
         ("solution", 1, FOUND),
-        ("finish", "Golfing Madness", RESULT, 3),
+        ("finish", "Golfing Madness", RESULT, 3, "dlx"),
     ]
 
 

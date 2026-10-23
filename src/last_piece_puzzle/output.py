@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 
 from last_piece_puzzle.puzzle import Puzzle
-from last_piece_puzzle.solver import FoundSolution, SolveResult
+from last_piece_puzzle.solver import FoundSolution, Method, SolveResult
 
 
 class Output(ABC):
@@ -19,7 +19,9 @@ class Output(ABC):
     def on_solution(self, number: int, found: FoundSolution, /) -> None: ...
 
     @abstractmethod
-    def finish(self, puzzle: Puzzle, result: SolveResult, seconds: float, workers: int) -> None: ...
+    def finish(
+        self, puzzle: Puzzle, result: SolveResult, seconds: float, workers: int, method: Method
+    ) -> None: ...
 
 
 class ConsoleOutput(Output):
@@ -38,10 +40,16 @@ class ConsoleOutput(Output):
             flush=True,
         )
 
-    def finish(self, puzzle: Puzzle, result: SolveResult, seconds: float, workers: int) -> None:
-        used = f"({workers} {'worker' if workers == 1 else 'workers'})"
+    def finish(
+        self, puzzle: Puzzle, result: SolveResult, seconds: float, workers: int, method: Method
+    ) -> None:
+        if method == "dlx":
+            done = f"{result.moves} rows chosen, {seconds:.1f} s (DLX)"
+        else:
+            used = f"{workers} {'worker' if workers == 1 else 'workers'}"
+            done = f"{result.moves} moves, {seconds:.1f} s ({used})"
         if not result.solutions:
-            print(f"No solutions found in {result.moves} moves, {seconds:.1f} s {used}.")
+            print(f"No solutions found in {done}.")
             return
         print("\nKey:")
         for piece in puzzle.pieces:
@@ -52,4 +60,4 @@ class ConsoleOutput(Output):
                 print(" ".join(row))
         count = len(result.solutions)
         plural = "solution" if count == 1 else "solutions"
-        print(f"\n{count} {plural} found in {result.moves} moves, {seconds:.1f} s {used}.")
+        print(f"\n{count} {plural} found in {done}.")
