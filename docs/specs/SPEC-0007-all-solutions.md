@@ -1,6 +1,6 @@
 # SPEC-0007: Find all solutions
 
-Status: Reviewed
+Status: Done
 
 ## Goal
 `solve` searches the whole tree by default and returns every distinct solution. Rotations that

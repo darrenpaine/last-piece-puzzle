@@ -46,7 +46,7 @@ Done when: the unit tests pass and the solution is still produced.
 Spec: SPEC-0006.
 Done when: all tests pass and the piece definitions are in the puzzles folder.
 
-6. Find all solutions by default, not just the first.
+6. (Done) Find all solutions by default, not just the first.
    - `solve` carries on after each full board and returns every distinct solution.
    - Pieces that look the same after a turn (shape and tabs, e.g. D and H after 180°) only try their
      distinct rotations, so each solution is found once. A C++ mode tries all 4 rotations for the C++ checks.
