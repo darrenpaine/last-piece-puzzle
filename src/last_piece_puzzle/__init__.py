@@ -16,17 +16,33 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.list:
         for key in keys:
-            print(f"{key}: {puzzles.load(key).name}")
+            print(describe(key))
         return
     chosen: str | None = args.puzzle or choose(keys)
-    if chosen is not None:
-        solve_and_print(puzzles.load(chosen))
+    if chosen is None:
+        return
+    try:
+        puzzle = puzzles.load(chosen)
+    except ValueError as error:
+        parser.exit(1, f"last-piece-puzzle: {error}\n")
+    solve_and_print(puzzle)
+
+
+def describe(key: str) -> str:
+    """`key: name`, or `key: cannot load (reason)` so one broken puzzle does not stop the others."""
+    try:
+        return f"{key}: {puzzles.load(key).name}"
+    except ValueError as error:
+        return f"{key}: cannot load ({error})"
 
 
 def choose(keys: Sequence[str]) -> str | None:
     """Ask for a puzzle from a numbered menu; None to quit (SPEC-0006 B-0005)."""
     for number, key in enumerate(keys, start=1):
-        print(f"{number}. {puzzles.load(key).name} ({key})")
+        try:
+            print(f"{number}. {puzzles.load(key).name} ({key})")
+        except ValueError:
+            print(f"{number}. {describe(key)}")
     while True:
         try:
             answer = input(f"Choose a puzzle (1-{len(keys)}, q to quit): ").strip()

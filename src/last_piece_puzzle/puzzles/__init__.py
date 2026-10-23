@@ -18,10 +18,16 @@ def available() -> list[str]:
 
 
 def load(key: str) -> Puzzle:
+    """Import a puzzle module and return its PUZZLE; any failure raises ValueError (SPEC-0006)."""
     keys = available()
     if key not in keys:
         raise ValueError(f"unknown puzzle {key!r}; available: {', '.join(keys)}")
-    puzzle = importlib.import_module(f"{__name__}.{key}{SUFFIX}").PUZZLE
+    module_name = f"{__name__}.{key}{SUFFIX}"
+    try:
+        # A module that fails to import, or whose Puzzle fails its checks, raises here.
+        puzzle = importlib.import_module(module_name).PUZZLE
+    except (ImportError, SyntaxError, AttributeError, ValueError) as error:
+        raise ValueError(f"puzzle {key!r} cannot be loaded: {error}") from error
     if not isinstance(puzzle, Puzzle):
-        raise TypeError(f"{key}{SUFFIX}.PUZZLE is not a Puzzle")
+        raise ValueError(f"puzzle {key!r} cannot be loaded: PUZZLE is not a Puzzle")
     return puzzle
