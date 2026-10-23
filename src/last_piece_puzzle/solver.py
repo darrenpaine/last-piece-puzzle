@@ -16,6 +16,8 @@ from last_piece_puzzle.solution import Solution
 # "fastsearch" is `FastSolver` and "search" is `Solver`: the same search, so the same results.
 # "dlx" is `DlxSolver`, exact cover (SPEC-0010): the same solutions, found a different way.
 Method = Literal["dlx", "fastsearch", "search"]
+# The two depth-first searches: identical results, including every move count.
+SEARCH_METHODS: tuple[Method, ...] = ("fastsearch", "search")
 
 
 @dataclass(frozen=True)

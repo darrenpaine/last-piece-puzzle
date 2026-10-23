@@ -114,9 +114,9 @@ def test_cover_table_excludes() -> None:
 
 
 @pytest.mark.spec("SPEC-0010", "AT-0006")
-def test_solve_defaults_to_search() -> None:
+def test_solve_defaults_to_fastsearch() -> None:
     result = solver.solve(SMALL_PUZZLES["two-solutions"])
-    assert result.moves == 8  # DFS counts every place and remove
+    assert result.moves == 8  # the depth-first search counts every place and remove
     assert solver.solve(SMALL_PUZZLES["two-solutions"], method="dlx").moves == 4  # rows chosen
 
 

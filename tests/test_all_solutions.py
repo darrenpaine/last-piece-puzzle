@@ -2,12 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from last_piece_puzzle import METHODS, solver
+from last_piece_puzzle import solver
 from last_piece_puzzle.pieces import Bit, Border, Piece, Tab
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
 from last_piece_puzzle.solution import Solution, load_solution, save_solution
-from last_piece_puzzle.solver import Method, check_solution
+from last_piece_puzzle.solver import SEARCH_METHODS, Method, check_solution
 
 IN, OUT, NONE = Tab.IN, Tab.OUT, Tab.NONE
 FIXTURES = [
@@ -55,7 +55,7 @@ def test_distinct_rotations_of_small_pieces() -> None:
 
 @pytest.mark.spec("SPEC-0007", "AT-0002")
 @pytest.mark.parametrize(("all_rotations", "times_found", "moves"), [(False, 1, 2), (True, 2, 4)])
-@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("method", SEARCH_METHODS)
 def test_symmetric_piece_found_once(
     all_rotations: bool, times_found: int, moves: int, method: Method
 ) -> None:
@@ -91,7 +91,7 @@ def test_fixtures_are_valid_and_different() -> None:
 
 @pytest.mark.spec("SPEC-0004", "AT-0001")
 @pytest.mark.spec("SPEC-0007", "AT-0005")
-@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("method", SEARCH_METHODS)
 def test_start_e_finds_first_two_fixtures(method: Method) -> None:
     started: list[str] = []
     result = solver.solve(PUZZLE, start_pieces=["E"], on_start=started.append, method=method)
@@ -105,7 +105,7 @@ def test_start_e_finds_first_two_fixtures(method: Method) -> None:
 
 
 @pytest.mark.spec("SPEC-0007", "AT-0006")
-@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("method", SEARCH_METHODS)
 def test_cpp_mode_start_a(method: Method) -> None:
     result = solver.solve(PUZZLE, start_pieces=["A"], all_rotations=True, method=method)
     assert len(result.solutions) == 1
@@ -117,7 +117,7 @@ def test_cpp_mode_start_a(method: Method) -> None:
 @pytest.mark.spec("SPEC-0004", "AT-0005")
 @pytest.mark.spec("SPEC-0007", "AT-0007")
 @pytest.mark.slow
-@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("method", SEARCH_METHODS)
 def test_default_finds_all_five(method: Method) -> None:
     result = solver.solve(PUZZLE, method=method)
     assert [found.solution.grid for found in result.solutions] == GRIDS
@@ -129,7 +129,7 @@ def test_default_finds_all_five(method: Method) -> None:
 @pytest.mark.spec("SPEC-0003", "AT-0005")
 @pytest.mark.spec("SPEC-0007", "AT-0008")
 @pytest.mark.slow
-@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("method", SEARCH_METHODS)
 def test_cpp_mode_matches_cpp(method: Method) -> None:
     result = solver.solve(PUZZLE, all_rotations=True, method=method)
     first = result.solutions[0]

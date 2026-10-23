@@ -145,7 +145,8 @@ def test_prints_only_no_solutions_line(
 
 @pytest.mark.spec("SPEC-0009", "AT-0004")
 @pytest.mark.parametrize(
-    ("argv", "method"), [([], "fastsearch"), (["--method", "search"], "search")]
+    ("argv", "method"),
+    [([], "dlx"), (["--method", "fastsearch"], "fastsearch"), (["--method", "search"], "search")],
 )
 def test_cli_passes_method(monkeypatch: pytest.MonkeyPatch, argv: list[str], method: str) -> None:
     seen: list[object] = []
