@@ -39,7 +39,7 @@ Done when: the fast tests and the seeded test pass in CI; the slow test passes l
 Spec: SPEC-0005.
 Done when: the unit tests pass and the solution is still produced.
 
-5. Puzzle definitions. The Golfing Madness pieces and border already moved to
+5. (Done) Puzzle definitions. The Golfing Madness pieces and border already moved to
    `src/last_piece_puzzle/puzzles/golfing_madness_puzzle.py` in step 2.
    What remains: a `Puzzle` definition (name, pieces, border) that the solver and CLI take as input,
    so the solver holds no puzzle-specific data and a new puzzle needs only a new module.
