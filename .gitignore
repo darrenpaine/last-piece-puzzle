@@ -12,3 +12,6 @@ wheels/
 # Coverage
 .coverage
 htmlcov/
+
+# Editor settings
+.vscode/
