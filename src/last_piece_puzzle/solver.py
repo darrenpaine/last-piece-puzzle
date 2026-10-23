@@ -1,16 +1,28 @@
-"""Depth-first solver ported from cpp/main.cpp (SPEC-0003, SPEC-0005 to SPEC-0007, SPEC-0009)."""
+"""Depth-first solver ported from cpp/main.cpp (SPEC-0003, SPEC-0005 to SPEC-0007, SPEC-0009).
+
+`Solver` is the original board search, kept as the readable reference. `FastSolver` (engine.py) runs
+the same search faster and is the default for `solve`.
+"""
 
 from collections.abc import Sequence
-from dataclasses import dataclass
-from functools import cached_property
-from typing import Protocol
+from dataclasses import dataclass, replace
+from typing import Literal, Protocol
 
 from last_piece_puzzle.board import Board
-from last_piece_puzzle.engine import Candidates, Engine
-from last_piece_puzzle.engine import FoundSolution as FoundSolution
-from last_piece_puzzle.engine import SolutionCallback as SolutionCallback
-from last_piece_puzzle.pieces import Piece
+from last_piece_puzzle.pieces import Piece, Placement
 from last_piece_puzzle.puzzle import Puzzle
+from last_piece_puzzle.solution import Solution
+
+# "fastsearch" is `FastSolver`, "search" is `Solver`: the same search, so the same results.
+Method = Literal["fastsearch", "search"]
+
+
+@dataclass(frozen=True)
+class FoundSolution:
+    solution: Solution
+    start_piece: str
+    found_at_move: int
+    times_found: int = 1
 
 
 @dataclass(frozen=True)
@@ -26,6 +38,12 @@ class StartCallback(Protocol):
     def __call__(self, letter: str, /) -> None: ...
 
 
+class SolutionCallback(Protocol):
+    """Called with the number (from 1) and details of each new distinct solution."""
+
+    def __call__(self, number: int, found: FoundSolution, /) -> None: ...
+
+
 class Solver:
     def __init__(self, puzzle: Puzzle, all_rotations: bool = False) -> None:
         """`all_rotations` tries all 4 rotations of every piece, as the C++ does."""
@@ -38,26 +56,15 @@ class Solver:
         }
         self.reset()
 
-    @cached_property
-    def candidates(self) -> Candidates:
-        """The placements that could fit at each cell, built once (SPEC-0009)."""
-        return Candidates(self.puzzle, self.all_rotations)
-
     def reset(self, on_solution: SolutionCallback | None = None) -> None:
         """Empty the board and forget the moves and solutions so far."""
-        self.engine = Engine(self.candidates, on_solution)
-
-    @property
-    def moves(self) -> int:
-        return self.engine.moves
-
-    @property
-    def boards(self) -> int:
-        return self.engine.boards
-
-    @property
-    def found(self) -> dict[tuple[str, ...], FoundSolution]:
-        return self.engine.found
+        self.board = Board(self.border)
+        self.used: set[str] = set()
+        self.moves = 0
+        self.boards = 0
+        self.found: dict[tuple[str, ...], FoundSolution] = {}
+        self.start = ""
+        self._on_solution = on_solution
 
     def solve(
         self,
@@ -80,13 +87,48 @@ class Solver:
         for piece in self.start_order(start_pieces):
             if on_start:
                 on_start(piece.letter)
-            self.engine.start = piece.letter
-            self.engine.search(piece.letter, 0)
+            self.start = piece.letter
+            self.search(piece, 0, 0)
         return SolveResult(tuple(self.found.values()), self.boards, self.moves)
 
     def start_order(self, start_pieces: Sequence[str] | None) -> list[Piece]:
         order = self.pieces.search_order
         return [p for p in order if start_pieces is None or p.letter in start_pieces]
+
+    def search(self, piece: Piece, row: int, col: int) -> None:
+        """Try every placement of `piece` on (row, col) (C++ CheckFit)."""
+        for placement in self.placements[piece.letter]:
+            if self.board.fits(placement, row, col):
+                self.descend(piece, placement, row, col)
+
+    def descend(self, piece: Piece, placement: Placement, row: int, col: int) -> None:
+        """Place a fitting placement, search the rest, then take it off; full boards are kept."""
+        board = self.board
+        board.place(piece.letter, placement, row, col)
+        self.used.add(piece.letter)
+        self.moves += 1
+        if len(self.used) == len(self.pieces):
+            self._record()
+        elif (free := board.first_free()) is not None:
+            for nxt in self.pieces.search_order:
+                if nxt.letter not in self.used:
+                    self.search(nxt, *free)
+        board.remove(placement, row, col)
+        self.used.discard(piece.letter)
+        self.moves += 1
+
+    def _record(self) -> None:
+        """Keep a full board; an equal letter grid is the same solution found again."""
+        self.boards += 1
+        grid = self.board.grid()
+        found = self.found.get(grid)
+        if found is not None:
+            self.found[grid] = replace(found, times_found=found.times_found + 1)
+            return
+        found = FoundSolution(Solution(grid=grid), self.start, self.moves)
+        self.found[grid] = found
+        if self._on_solution:
+            self._on_solution(len(self.found), found)
 
 
 def solve(
@@ -96,8 +138,14 @@ def solve(
     on_solution: SolutionCallback | None = None,
     all_rotations: bool = False,
     workers: int | None = None,
+    method: Method = "fastsearch",
 ) -> SolveResult:
-    return Solver(puzzle, all_rotations).solve(start_pieces, on_start, on_solution, workers)
+    solver_class: type[Solver] = Solver
+    if method == "fastsearch":
+        from last_piece_puzzle.engine import FastSolver  # imports this module
+
+        solver_class = FastSolver
+    return solver_class(puzzle, all_rotations).solve(start_pieces, on_start, on_solution, workers)
 
 
 def check_solution(puzzle: Puzzle, grid: Sequence[str]) -> bool:

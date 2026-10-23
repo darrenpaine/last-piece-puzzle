@@ -21,6 +21,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
 
 from last_piece_puzzle.board import Board
+from last_piece_puzzle.engine import FastSolver
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.solver import (
     FoundSolution,
@@ -112,15 +113,27 @@ def _split_at(solver: Solver, start_pieces: Sequence[str] | None, depth: int) ->
 _worker: Solver | None = None
 
 
-def _init_worker(puzzle: Puzzle, all_rotations: bool) -> None:
+def _init_worker(solver_class: type[Solver], puzzle: Puzzle, all_rotations: bool) -> None:
     global _worker
-    _worker = Solver(puzzle, all_rotations)
+    _worker = solver_class(puzzle, all_rotations)
 
 
 def run_task(solver: Solver, task: Task) -> TaskResult:
     """Place the task's prefix without counting moves, then search below its last placement."""
     solver.reset()
-    solver.engine.run_path(task.path)
+    if isinstance(solver, FastSolver):
+        engine = solver.engine
+        engine.run_path(task.path)
+        return TaskResult(engine.moves, engine.boards, tuple(engine.found.values()))
+    solver.start = task.path[0][0]
+    for letter, index in task.path[:-1]:
+        row, col = solver.board.first_free() or (0, 0)
+        solver.board.place(letter, solver.placements[letter][index], row, col)
+        solver.used.add(letter)
+    letter, index = task.path[-1]
+    row, col = solver.board.first_free() or (0, 0)
+    piece = solver.pieces.by_letter[letter]
+    solver.descend(piece, solver.placements[letter][index], row, col)
     return TaskResult(solver.moves, solver.boards, tuple(solver.found.values()))
 
 
@@ -139,7 +152,9 @@ def solve(
     steps = split(solver, start_pieces, workers)
     tasks = [step for step in steps if isinstance(step, Task)]
     with ProcessPoolExecutor(
-        workers, initializer=_init_worker, initargs=(solver.puzzle, solver.all_rotations)
+        workers,
+        initializer=_init_worker,
+        initargs=(type(solver), solver.puzzle, solver.all_rotations),
     ) as pool:
         return _merge(steps, pool.map(_run_task, tasks), on_start, on_solution)
 

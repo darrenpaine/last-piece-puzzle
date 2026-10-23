@@ -2,7 +2,7 @@ import pytest
 
 from last_piece_puzzle import parallel
 from last_piece_puzzle.board import Board
-from last_piece_puzzle.engine import EAST, NORTH, SOUTH, WEST, Candidates, Check, Engine
+from last_piece_puzzle.engine import EAST, NORTH, SOUTH, WEST, Candidates, Check, Engine, FastSolver
 from last_piece_puzzle.pieces import Piece, Placement, Tab
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
 from last_piece_puzzle.solver import Solver
@@ -77,13 +77,14 @@ def test_candidate_matches_its_placement(
 
 
 @pytest.mark.spec("SPEC-0009", "AT-0001")
-def test_task_paths_merge_to_single_process_result() -> None:
+@pytest.mark.parametrize("solver_class", [Solver, FastSolver])
+def test_task_paths_merge_to_single_process_result(solver_class: type[Solver]) -> None:
     # Runs each task's prefix path in this process, so the engine's path placing is covered too.
-    one = Solver(PUZZLE)
+    one = solver_class(PUZZLE)
     steps = parallel.split(one, ["N"], workers=2)
     tasks = [step for step in steps if isinstance(step, parallel.Task)]
     assert max(len(task.path) for task in tasks) > 1
-    worker = Solver(PUZZLE)
+    worker = solver_class(PUZZLE)
     results = iter([parallel.run_task(worker, task) for task in tasks])
     assert parallel._merge(steps, results, None, None) == one.solve(["N"])
 

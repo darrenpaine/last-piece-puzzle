@@ -1,33 +1,27 @@
 """Fast depth-first search: placements checked per cell ahead of time, bitmask board (SPEC-0009).
 
-The search tries the same placements in the same order as the C++ (SPEC-0003, SPEC-0007), so the
-moves and solutions are unchanged. Board cells are numbered row-major: `cell = row * cols + col`.
+The search tries the same placements in the same order as `Solver` and the C++ (SPEC-0003,
+SPEC-0007), so the moves and solutions are unchanged. `FastSolver` runs it with `Solver`'s API.
+Board cells are numbered row-major: `cell = row * cols + col`.
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
-from typing import NamedTuple, Protocol
+from dataclasses import replace
+from typing import NamedTuple
 
 from last_piece_puzzle.pieces import Placement, Tab
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.solution import Solution
+from last_piece_puzzle.solver import (
+    FoundSolution,
+    SolutionCallback,
+    Solver,
+    SolveResult,
+    StartCallback,
+)
 
 # Sides as indexes into a cell's 4 tabs, in `Bit` order.
 NORTH, WEST, SOUTH, EAST = range(4)
-
-
-@dataclass(frozen=True)
-class FoundSolution:
-    solution: Solution
-    start_piece: str
-    found_at_move: int
-    times_found: int = 1
-
-
-class SolutionCallback(Protocol):
-    """Called with the number (from 1) and details of each new distinct solution."""
-
-    def __call__(self, number: int, found: FoundSolution, /) -> None: ...
 
 
 class CellTabs(NamedTuple):
@@ -241,3 +235,33 @@ class Engine:
         self.found[grid] = found
         if self._on_solution:
             self._on_solution(len(self.found), found)
+
+
+class FastSolver(Solver):
+    """`Solver` with the search run by `Engine`: same results, several times faster (SPEC-0009)."""
+
+    def __init__(self, puzzle: Puzzle, all_rotations: bool = False) -> None:
+        self.candidates = Candidates(puzzle, all_rotations)
+        super().__init__(puzzle, all_rotations)
+
+    def reset(self, on_solution: SolutionCallback | None = None) -> None:
+        super().reset(on_solution)
+        self.engine = Engine(self.candidates, on_solution)
+
+    def solve(
+        self,
+        start_pieces: Sequence[str] | None = None,
+        on_start: StartCallback | None = None,
+        on_solution: SolutionCallback | None = None,
+        workers: int | None = None,
+    ) -> SolveResult:
+        if workers is not None and workers > 1:
+            return super().solve(start_pieces, on_start, on_solution, workers)
+        self.reset(on_solution)
+        engine = self.engine
+        for piece in self.start_order(start_pieces):
+            if on_start:
+                on_start(piece.letter)
+            engine.start = piece.letter
+            engine.search(piece.letter, 0)
+        return SolveResult(tuple(engine.found.values()), engine.boards, engine.moves)

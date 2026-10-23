@@ -4,13 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from last_piece_puzzle import main, parallel, solver
+from last_piece_puzzle import METHODS, main, parallel, solver
 from last_piece_puzzle.board import Board
+from last_piece_puzzle.engine import FastSolver
 from last_piece_puzzle.pieces import Bit, Border, Piece, Tab
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
 from last_piece_puzzle.solution import load_solution
-from last_piece_puzzle.solver import FoundSolution, Solver, SolveResult
+from last_piece_puzzle.solver import FoundSolution, Method, Solver, SolveResult
 
 IN, OUT, NONE = Tab.IN, Tab.OUT, Tab.NONE
 GRIDS = [
@@ -60,10 +61,13 @@ def solve_with_calls(puzzle: Puzzle, **options: object) -> tuple[SolveResult, Ca
 @pytest.mark.spec("SPEC-0008", "AT-0001")
 @pytest.mark.parametrize("all_rotations", [False, True])
 @pytest.mark.parametrize("key", sorted(SMALL_PUZZLES))
-def test_small_puzzles_match_single_process(key: str, all_rotations: bool) -> None:
+@pytest.mark.parametrize("method", METHODS)
+def test_small_puzzles_match_single_process(key: str, all_rotations: bool, method: Method) -> None:
     puzzle = SMALL_PUZZLES[key]
-    expected = solve_with_calls(puzzle, all_rotations=all_rotations)
-    assert solve_with_calls(puzzle, all_rotations=all_rotations, workers=2) == expected
+    expected = solve_with_calls(puzzle, all_rotations=all_rotations, method=method)
+    assert (
+        solve_with_calls(puzzle, all_rotations=all_rotations, workers=2, method=method) == expected
+    )
 
 
 @pytest.mark.spec("SPEC-0008", "AT-0002")
@@ -82,18 +86,20 @@ def test_split_gives_many_valid_tasks() -> None:
 
 
 @pytest.mark.spec("SPEC-0008", "AT-0002")
-def test_split_tasks_merge_to_single_process_result() -> None:
+@pytest.mark.parametrize("solver_class", [Solver, FastSolver])
+def test_split_tasks_merge_to_single_process_result(solver_class: type[Solver]) -> None:
     # Running the tasks one by one in this process, then merging, must equal the plain search.
-    one = Solver(PUZZLE)
+    one = solver_class(PUZZLE)
     steps = parallel.split(one, ["A"], workers=2)
     tasks = [step for step in steps if isinstance(step, parallel.Task)]
-    results = iter([parallel.run_task(Solver(PUZZLE), task) for task in tasks])
+    results = iter([parallel.run_task(solver_class(PUZZLE), task) for task in tasks])
     assert parallel._merge(steps, results, None, None) == one.solve(["A"])
 
 
 @pytest.mark.spec("SPEC-0008", "AT-0003")
-def test_start_e_with_two_workers() -> None:
-    result = solver.solve(PUZZLE, start_pieces=["E"], workers=2)
+@pytest.mark.parametrize("method", METHODS)
+def test_start_e_with_two_workers(method: Method) -> None:
+    result = solver.solve(PUZZLE, start_pieces=["E"], workers=2, method=method)
     assert [found.solution.grid for found in result.solutions] == GRIDS[:2]
     assert [found.found_at_move for found in result.solutions] == [201634, 218500]
     assert result.moves == 335338
@@ -101,8 +107,9 @@ def test_start_e_with_two_workers() -> None:
 
 @pytest.mark.spec("SPEC-0008", "AT-0004")
 @pytest.mark.slow
-def test_full_solve_with_workers_matches_step_6() -> None:
-    result = solver.solve(PUZZLE, workers=4)
+@pytest.mark.parametrize("method", METHODS)
+def test_full_solve_with_workers_matches_step_6(method: Method) -> None:
+    result = solver.solve(PUZZLE, workers=4, method=method)
     assert [found.solution.grid for found in result.solutions] == GRIDS
     assert [found.found_at_move for found in result.solutions] == [
         882594,
@@ -112,7 +119,7 @@ def test_full_solve_with_workers_matches_step_6() -> None:
         1377280,
     ]
     assert (result.boards_found, result.moves) == (5, 1430150)
-    cpp = solver.solve(PUZZLE, all_rotations=True, workers=4)
+    cpp = solver.solve(PUZZLE, all_rotations=True, workers=4, method=method)
     assert cpp.solutions[0].found_at_move == 1529410
     assert (len(cpp.solutions), cpp.boards_found, cpp.moves) == (5, 20, 2654638)
 
@@ -122,10 +129,10 @@ def test_full_solve_with_workers_matches_step_6() -> None:
 @pytest.mark.skipif((os.process_cpu_count() or 1) < 4, reason="needs at least 4 CPUs")
 def test_four_workers_at_least_twice_as_fast() -> None:
     started = time.perf_counter()
-    solver.solve(PUZZLE)
+    solver.solve(PUZZLE, method="search")
     single = time.perf_counter() - started
     started = time.perf_counter()
-    solver.solve(PUZZLE, workers=4)
+    solver.solve(PUZZLE, workers=4, method="search")
     assert time.perf_counter() - started < single / 2
 
 
