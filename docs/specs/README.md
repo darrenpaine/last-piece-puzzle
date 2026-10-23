@@ -10,5 +10,5 @@ Status: Draft → Reviewed → Done.
 | SPEC-0003 | Python port of the solver | 2         | Done   |
 | SPEC-0004 | Solution and fit tests    | 3         | Done   |
 | SPEC-0005 | Object model              | 4         | Done   |
-| SPEC-0006 | Puzzle definitions        | 5         | Done   |
+| SPEC-0006 | Puzzle definitions        | 5         | Reviewed |
 | SPEC-0007 | Find all solutions        | 6         | —      |

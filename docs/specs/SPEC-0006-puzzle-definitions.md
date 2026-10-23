@@ -1,6 +1,6 @@
 # SPEC-0006: Puzzle definitions
 
-Status: Done
+Status: Reviewed
 
 ## Goal
 The solver, board and CLI take a `Puzzle` as input and hold no puzzle-specific data, so adding a
@@ -37,6 +37,9 @@ read from a photo in step 9) is caught before a long search.
   - a border value is `NONE`.
 - B-0002: `available()` finds the modules by name (`*_puzzle`) with `pkgutil`. `load` imports the module
   and returns its `PUZZLE`. An unknown key raises `ValueError` that lists the available keys.
+  Any failure while loading also raises `ValueError` naming the key and the cause (added after PR review):
+  the module fails to import (e.g. `ImportError`, `SyntaxError`), has no `PUZZLE`, has a `PUZZLE` that is
+  not a `Puzzle`, or its `Puzzle` fails the B-0001 checks.
 - B-0003: The search is unchanged. The move counts stay 1,529,410 for the full run and 332,262 from E.
 - B-0004: The CLI prints the puzzle's name in its header, then the same output as now.
   An unknown key exits with an argparse error (status 2) that lists the keys.
@@ -46,6 +49,9 @@ read from a photo in step 9) is caught before a long search.
   - on a valid number, solves that puzzle;
   - on `q`, an empty line or end of input, exits with status 0 without solving;
   - on anything else, prints `Not a valid choice.` and asks again.
+- B-0006: A puzzle that fails to load does not stop the others (added after PR review).
+  `--list` and the menu show it as `<key>: cannot load (<reason>)`. Solving it, by key or from the menu,
+  prints `last-piece-puzzle: <reason>` to stderr and exits with status 1.
 
 ## Acceptance tests
 - AT-0001: Each failure in B-0001 raises `ValueError` for a small hand-made puzzle. A valid small puzzle passes.
@@ -60,6 +66,11 @@ read from a photo in step 9) is caught before a long search.
   - `1` solves Golfing Madness;
   - `q`, an empty line and end of input each exit with status 0 without calling `solve`;
   - `x` then `1` prints `Not a valid choice.` once and then solves.
+- AT-0007: With extra puzzle modules in a temp folder (B-0002, B-0006):
+  - a syntax error, a failed import, no `PUZZLE`, a non-`Puzzle` `PUZZLE` and an invalid `Puzzle` each make
+    `load` raise `ValueError` naming the key;
+  - `--list` still shows `golfing_madness` and marks the broken ones `cannot load`;
+  - `main(["<broken key>"])` exits with status 1.
 
 ## Out of scope
 - A data file format (JSON or similar). Puzzles stay as Python modules for now; step 9 can generate them.
