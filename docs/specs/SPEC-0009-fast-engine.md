@@ -1,6 +1,6 @@
 # SPEC-0009: Fast search engine
 
-Status: Draft
+Status: Reviewed
 
 ## Goal
 Make each search several times faster without changing what it finds or how it counts. The same
