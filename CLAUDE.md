@@ -69,7 +69,7 @@ CI runs lint, types, and tests on every push. Keep all three green. Check this l
 cpp/main.cpp                 # Anton's original solver (reference only, do not edit)
 src/last_piece_puzzle/
   __init__.py                # main() entry point (`last-piece-puzzle` script)
-  puzzles/                   # one module per puzzle definition, e.g. golfing_madness.py
+  puzzles/                   # one <key>_puzzle.py per puzzle, defining PUZZLE
 docs/specs/                  # per-feature contract: goal, I/O, behavior, acceptance
 tests/
   fixtures/                  # recorded solutions (do not edit to make tests pass)

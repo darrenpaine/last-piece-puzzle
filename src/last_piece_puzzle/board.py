@@ -1,8 +1,9 @@
 """The board: placing pieces and checking tabs (SPEC-0005)."""
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 
-from last_piece_puzzle.pieces import Bit, Border, Piece, PieceSet, Placement, Tab
+from last_piece_puzzle.pieces import Bit, Border, Placement, Tab
+from last_piece_puzzle.puzzle import Puzzle
 
 # A cell holds the letter and the bit placed on it, or None when empty.
 Cell = tuple[str, Bit] | None
@@ -76,11 +77,9 @@ class Board:
         return tuple("".join(cell[0] if cell else "." for cell in line) for line in self._cells)
 
     @classmethod
-    def from_grid(
-        cls, pieces: Iterable[Piece], border: Border, grid: Sequence[str]
-    ) -> Board | None:
+    def from_grid(cls, puzzle: Puzzle, grid: Sequence[str]) -> Board | None:
         """Rebuild a solved board from a letter grid; None if it is not a valid solution."""
-        by_letter = PieceSet(pieces).by_letter
+        by_letter, border = puzzle.piece_set.by_letter, puzzle.border
         if len(grid) != len(border.left) or any(len(line) != len(border.top) for line in grid):
             return None
         cells: dict[str, set[tuple[int, int]]] = {}

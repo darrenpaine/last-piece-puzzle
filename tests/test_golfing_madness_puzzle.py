@@ -4,10 +4,7 @@ from pathlib import Path
 import pytest
 
 from last_piece_puzzle.pieces import Tab
-from last_piece_puzzle.puzzles.golfing_madness_puzzle import (
-    GOLFING_MADNESS_BORDER,
-    GOLFING_MADNESS_PIECES,
-)
+from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
 
 CPP_SOURCE = (Path(__file__).parent.parent / "cpp" / "main.cpp").read_text()
 
@@ -38,7 +35,7 @@ def test_pieces_match_cpp() -> None:
         p.letter: [
             (b.row, b.col, b.north.value, b.west.value, b.south.value, b.east.value) for b in p.bits
         ]
-        for p in GOLFING_MADNESS_PIECES
+        for p in PUZZLE.pieces
     }
     assert python == cpp_pieces()
 
@@ -46,7 +43,7 @@ def test_pieces_match_cpp() -> None:
 @pytest.mark.spec("SPEC-0003", "AT-0001")
 def test_bit_counts_match_cpp_init_pieces() -> None:
     counts = re.findall(r"Name = '([A-N])';\s*Ptr->NumBits = (\d+);", cpp_function("InitPieces"))
-    assert {p.letter: len(p.bits) for p in GOLFING_MADNESS_PIECES} == {
+    assert {p.letter: len(p.bits) for p in PUZZLE.pieces} == {
         letter: int(n) for letter, n in counts
     }
 
@@ -55,4 +52,4 @@ def test_bit_counts_match_cpp_init_pieces() -> None:
 @pytest.mark.parametrize("side", ["top", "left", "right", "bottom"])
 def test_border_matches_cpp(side: str) -> None:
     cpp = re.findall(rf"{side.capitalize()}\[\d\] = (\d);", cpp_function("InitBoard"))
-    assert getattr(GOLFING_MADNESS_BORDER, side) == tuple(Tab(int(v)) for v in cpp)
+    assert getattr(PUZZLE.border, side) == tuple(Tab(int(v)) for v in cpp)

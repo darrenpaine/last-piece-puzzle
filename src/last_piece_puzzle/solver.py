@@ -1,10 +1,11 @@
-"""Depth-first solver ported from cpp/main.cpp (SPEC-0003, SPEC-0005)."""
+"""Depth-first solver ported from cpp/main.cpp (SPEC-0003, SPEC-0005, SPEC-0006)."""
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from last_piece_puzzle.board import Board
-from last_piece_puzzle.pieces import Border, Piece, PieceSet
+from last_piece_puzzle.pieces import Piece
+from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.solution import Solution
 
 
@@ -16,10 +17,10 @@ class SolveResult:
 
 
 class Solver:
-    def __init__(self, pieces: Iterable[Piece], border: Border) -> None:
-        self.pieces = PieceSet(pieces)
-        self.border = border
-        self.board = Board(border)
+    def __init__(self, puzzle: Puzzle) -> None:
+        self.pieces = puzzle.piece_set
+        self.border = puzzle.border
+        self.board = Board(puzzle.border)
         self.used: set[str] = set()
         self.moves = 0
 
@@ -68,14 +69,13 @@ class Solver:
 
 
 def solve(
-    pieces: Iterable[Piece],
-    border: Border,
+    puzzle: Puzzle,
     start_pieces: Sequence[str] | None = None,
     on_start: Callable[[str], None] | None = None,
 ) -> SolveResult:
-    return Solver(pieces, border).solve(start_pieces, on_start)
+    return Solver(puzzle).solve(start_pieces, on_start)
 
 
-def check_solution(pieces: Iterable[Piece], border: Border, grid: Sequence[str]) -> bool:
-    """True if the grid can be built from the pieces with every tab fitting."""
-    return Board.from_grid(pieces, border, grid) is not None
+def check_solution(puzzle: Puzzle, grid: Sequence[str]) -> bool:
+    """True if the grid can be built from the puzzle's pieces with every tab fitting."""
+    return Board.from_grid(puzzle, grid) is not None
