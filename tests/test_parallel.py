@@ -158,9 +158,27 @@ def test_cli_passes_workers(
     assert capsys.readouterr().out.rstrip().endswith(f"{shown}.")
 
 
-@pytest.mark.spec("SPEC-0008", "AT-0006")
-def test_cli_rejects_zero_workers(capsys: pytest.CaptureFixture[str]) -> None:
+@pytest.mark.spec("SPEC-0008", "AT-0007")
+@pytest.mark.parametrize("count", ["0", "8", "100"])
+def test_cli_rejects_workers_out_of_range(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], count: str
+) -> None:
+    monkeypatch.setattr(os, "process_cpu_count", lambda: 7)
     with pytest.raises(SystemExit) as exit_info:
-        main(["golfing_madness", "--workers", "0"])
+        main(["golfing_madness", "--workers", count])
     assert exit_info.value.code == 2
-    assert "must be 1 or more" in capsys.readouterr().err
+    assert "must be between 1 and 7" in capsys.readouterr().err
+
+
+@pytest.mark.spec("SPEC-0008", "AT-0007")
+def test_cli_accepts_all_cpus(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[object] = []
+
+    def fake_solve(puzzle: Puzzle, *args: object, **kwargs: object) -> SolveResult:
+        seen.append(kwargs.get("workers"))
+        return SolveResult((), 0, 0)
+
+    monkeypatch.setattr(solver, "solve", fake_solve)
+    monkeypatch.setattr(os, "process_cpu_count", lambda: 7)
+    main(["golfing_madness", "--workers", "7"])
+    assert seen == [7]
