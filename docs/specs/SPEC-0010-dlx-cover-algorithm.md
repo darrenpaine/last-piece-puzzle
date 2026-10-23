@@ -3,9 +3,10 @@
 Status: Draft
 
 ## Goal
-An alternative solver that treats the puzzle as an exact cover problem (Knuth's Algorithm X, "Dancing
+A second solver that treats the puzzle as an exact cover problem (Knuth's Algorithm X, "Dancing
 Links" / DLX), with an extra rule for tabs. It finds the same solutions as the depth-first search (DFS)
-much faster. The DFS stays the default and keeps the C++ comparison.
+much faster, and it becomes the CLI default (`--method dlx`). The DFS stays available as `--method search`,
+with its exact move counts, C++ mode and workers.
 
 ## How it works
 ### 1. The puzzle as a table
@@ -64,9 +65,14 @@ Both DLX versions found exactly the 5 fixture solutions, each once.
     row's `excludes` bitset.
   - `DlxSolver(Solver)`: overrides `solve(start_pieces=None, on_start=None, on_solution=None, workers=None)`
     and returns the usual `SolveResult`.
-- `solve(puzzle, ..., method="dfs")` in `solver.py` gains `method`: `"dfs"` (default, current behaviour) or `"dlx"`.
-- CLI: `--method {dfs,dlx}`, default `dfs`. With `dlx`, the final line reads
-  `5 solutions found in 19469 rows chosen, 0.1 s (DLX).`
+- `solve(puzzle, ..., method="search")` in `solver.py` gains `method`: `"search"` (the DFS, current
+  behaviour) or `"dlx"`. The function's default stays `"search"`, so code and tests that need the exact move
+  counts or the C++ comparison get them without asking.
+- CLI: `--method {dlx,search}`, **default `dlx`**.
+  - With `dlx`, the final line reads `5 solutions found in 19469 rows chosen, 0.1 s (DLX).`
+    `--workers` and the progress lines for start pieces still work, but DLX runs in one process.
+  - With `search`, the output is as now: `... moves, 2.5 s (16 workers).`
+  - The default is switched to `dlx` in the last commit of this work, after the DLX tests pass.
 
 ## Behaviour
 - B-0001: `DlxSolver` finds every distinct solution once. A placement reached from different anchors or
@@ -92,9 +98,10 @@ Both DLX versions found exactly the 5 fixture solutions, each once.
 - AT-0004: `CoverTable`: Golfing Madness has 1,419 rows. Each row marks its cells and its piece. A row's
   `excludes` contains every row that overlaps it or uses the same piece, plus the rows that clash on tabs,
   and not a row that sits next to it with fitting tabs. Checked on a hand-picked pair from fixture `_1`.
-- AT-0005: `main(["golfing_madness", "--method", "dlx"])` (with `solve` stubbed) passes `method="dlx"` and
-  prints the DLX final line.
+- AT-0005: With `solve` stubbed, `main(["golfing_madness"])` and `main(["golfing_madness", "--method", "dlx"])`
+  pass `method="dlx"` and print the DLX final line. `main(["golfing_madness", "--method", "search"])` passes
+  `method="search"` and prints the moves and workers line. An unknown method exits with status 2.
+- AT-0006: `solve(PUZZLE)` with no `method` still uses the search: the existing move-count tests pass unchanged.
 
 ## Out of scope
-- Making DLX the default (a later decision).
 - Running DLX in parallel (not needed at this speed).

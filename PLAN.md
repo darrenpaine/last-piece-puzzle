@@ -65,8 +65,8 @@ Done when: it works and is shown to be faster than the step 6 baseline.
    with extra tab checks. Try a GPU only if these are not enough.
 Spec: SPEC-0009.
 
-9. Add a DLX exact cover solver as an alternative to the depth-first search, chosen with `--method dlx`.
-   DFS stays the default and keeps the C++ comparison.
+9. Add a DLX exact cover solver and make it the CLI default (`--method dlx`). The depth-first search
+   stays as `--method search`, with its exact move counts and the C++ comparison.
 Spec: SPEC-0010.
 Done when: DLX finds the same 5 solutions in the same order, in well under a second.
 
