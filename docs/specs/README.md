@@ -6,7 +6,7 @@ Status: Draft → Reviewed → Done.
 | Id        | Title                     | PLAN step | Status |
 |-----------|---------------------------|-----------|--------|
 | SPEC-0001 | Spec and id conventions   | 0         | Done   |
-| SPEC-0002 | Record the C++ solution   | 1         | —      |
+| SPEC-0002 | Record the C++ solution   | 1         | Draft  |
 | SPEC-0003 | Python port of the solver | 2         | —      |
 | SPEC-0004 | Solution and fit tests    | 3         | —      |
 | SPEC-0005 | Object model              | 4         | —      |
