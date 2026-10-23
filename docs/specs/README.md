@@ -11,4 +11,4 @@ Status: Draft → Reviewed → Done.
 | SPEC-0004 | Solution and fit tests    | 3         | Done   |
 | SPEC-0005 | Object model              | 4         | Done   |
 | SPEC-0006 | Puzzle definitions        | 5         | Done   |
-| SPEC-0007 | Find all solutions        | 6         | —      |
+| SPEC-0007 | Find all solutions        | 6         | Draft  |
