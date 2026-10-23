@@ -13,8 +13,9 @@ from last_piece_puzzle.pieces import Piece, Placement
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.solution import Solution
 
-# "fastsearch" is `FastSolver`, "search" is `Solver`: the same search, so the same results.
-Method = Literal["fastsearch", "search"]
+# "fastsearch" is `FastSolver` and "search" is `Solver`: the same search, so the same results.
+# "dlx" is `DlxSolver`, exact cover (SPEC-0010): the same solutions, found a different way.
+Method = Literal["dlx", "fastsearch", "search"]
 
 
 @dataclass(frozen=True)
@@ -145,6 +146,10 @@ def solve(
         from last_piece_puzzle.engine import FastSolver  # imports this module
 
         solver_class = FastSolver
+    elif method == "dlx":
+        from last_piece_puzzle.dlx import DlxSolver  # imports this module
+
+        solver_class = DlxSolver
     return solver_class(puzzle, all_rotations).solve(start_pieces, on_start, on_solution, workers)
 
 
