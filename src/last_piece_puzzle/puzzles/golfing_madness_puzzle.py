@@ -1,11 +1,12 @@
-"""Golfing Madness pieces and border, copied from `ResetPiece` and `InitBoard` in cpp/main.cpp."""
+"""Golfing Madness; pieces and border copied from `ResetPiece` and `InitBoard` in cpp/main.cpp."""
 
 from last_piece_puzzle.pieces import Bit, Border, Piece, Tab
+from last_piece_puzzle.puzzle import Puzzle
 
 IN, OUT, NONE = Tab.IN, Tab.OUT, Tab.NONE
 
 # In letter order; the solver tries them N to A, as the C++ list does.
-GOLFING_MADNESS_PIECES: tuple[Piece, ...] = (
+PIECES: tuple[Piece, ...] = (
     Piece(
         "A",
         "Bluehat",
@@ -157,9 +158,11 @@ GOLFING_MADNESS_PIECES: tuple[Piece, ...] = (
 )
 
 # Bottom[6] and Bottom[7] are both IN on purpose: it makes the pieces fit only one way.
-GOLFING_MADNESS_BORDER = Border(
+BORDER = Border(
     top=(IN, OUT, IN, OUT, IN, OUT, IN, OUT),
     left=(IN, OUT, IN, OUT, IN, OUT, IN, OUT),
     right=(OUT, IN, OUT, IN, OUT, IN, OUT, IN),
     bottom=(OUT, IN, OUT, IN, OUT, IN, IN, IN),
 )
+
+PUZZLE = Puzzle("Golfing Madness", PIECES, BORDER)
