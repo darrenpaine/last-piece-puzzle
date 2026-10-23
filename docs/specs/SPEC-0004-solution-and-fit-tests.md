@@ -1,6 +1,6 @@
 # SPEC-0004: Solution and fit tests
 
-Status: Draft
+Status: Reviewed
 
 ## Goal
 Show that the Python solver produces the C++ solution quickly, that it rejects wrong placements,
