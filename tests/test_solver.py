@@ -3,13 +3,14 @@ from pathlib import Path
 import pytest
 
 from last_piece_puzzle import main, solver
+from last_piece_puzzle.board import Board
 from last_piece_puzzle.pieces import Bit, Border, Piece, Tab
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import (
     GOLFING_MADNESS_BORDER,
     GOLFING_MADNESS_PIECES,
 )
 from last_piece_puzzle.solution import Solution, load_solution
-from last_piece_puzzle.solver import SolveResult, empty_board, fits, orientations, rotate
+from last_piece_puzzle.solver import SolveResult
 
 FIXTURE = Path(__file__).parent / "fixtures" / "golfing_madness_solution_1.txt"
 IN, OUT, NONE = Tab.IN, Tab.OUT, Tab.NONE
@@ -17,21 +18,24 @@ ALL_BITS = [bit for piece in GOLFING_MADNESS_PIECES for bit in piece.bits]
 
 
 @pytest.mark.spec("SPEC-0003", "AT-0002")
+@pytest.mark.spec("SPEC-0005", "AT-0001")
 def test_rotate_four_times_gives_original() -> None:
     for bit in ALL_BITS:
-        assert rotate(rotate(rotate(rotate(bit)))) == bit
+        assert bit.rotated().rotated().rotated().rotated() == bit
 
 
 @pytest.mark.spec("SPEC-0003", "AT-0002")
+@pytest.mark.spec("SPEC-0005", "AT-0001")
 def test_rotate_turns_clockwise() -> None:
     bit = Bit(1, 2, north=IN, west=OUT, south=NONE, east=IN)
-    assert rotate(bit) == Bit(2, -1, north=OUT, west=NONE, south=IN, east=IN)
+    assert bit.rotated() == Bit(2, -1, north=OUT, west=NONE, south=IN, east=IN)
 
 
 @pytest.mark.spec("SPEC-0003", "AT-0003")
+@pytest.mark.spec("SPEC-0005", "AT-0001")
 @pytest.mark.parametrize("piece", GOLFING_MADNESS_PIECES, ids=lambda p: p.letter)
 def test_orientations_follow_cpp_order(piece: Piece) -> None:
-    placements = orientations(piece)
+    placements = piece.placements
     count = len(piece.bits)
     assert len(placements) == 4 * count
     bits = piece.bits
@@ -47,7 +51,7 @@ def test_orientations_follow_cpp_order(piece: Piece) -> None:
             assert [(b.row - placement[0].row, b.col - placement[0].col) for b in placement] == [
                 (b.row - bits[0].row, b.col - bits[0].col) for b in bits
             ]
-        bits = tuple(rotate(b) for b in bits)
+        bits = tuple(b.rotated() for b in bits)
 
 
 # A single bit whose tabs do not clash with the top-left corner (top[0] and left[0] are IN).
@@ -55,39 +59,41 @@ CORNER_OK = Bit(0, 0, north=OUT, west=OUT, south=IN, east=IN)
 
 
 @pytest.mark.spec("SPEC-0003", "AT-0004")
+@pytest.mark.spec("SPEC-0005", "AT-0001")
 def test_fits_valid_placement() -> None:
-    board = empty_board(GOLFING_MADNESS_BORDER)
-    assert fits(board, GOLFING_MADNESS_BORDER, (CORNER_OK,), 0, 0)
+    assert Board(GOLFING_MADNESS_BORDER).fits((CORNER_OK,), 0, 0)
 
 
 @pytest.mark.spec("SPEC-0003", "AT-0004")
+@pytest.mark.spec("SPEC-0005", "AT-0001")
 @pytest.mark.parametrize(("row", "col"), [(0, 8), (8, 0), (-1, 0)])
 def test_fits_rejects_off_board(row: int, col: int) -> None:
-    board = empty_board(GOLFING_MADNESS_BORDER)
-    assert not fits(board, GOLFING_MADNESS_BORDER, (CORNER_OK,), row, col)
+    assert not Board(GOLFING_MADNESS_BORDER).fits((CORNER_OK,), row, col)
 
 
 @pytest.mark.spec("SPEC-0003", "AT-0004")
+@pytest.mark.spec("SPEC-0005", "AT-0001")
 def test_fits_rejects_overlap() -> None:
-    board = empty_board(GOLFING_MADNESS_BORDER)
-    board[0][0] = ("A", CORNER_OK)
-    assert not fits(board, GOLFING_MADNESS_BORDER, (CORNER_OK,), 0, 0)
+    board = Board(GOLFING_MADNESS_BORDER)
+    board.place("A", (CORNER_OK,), 0, 0)
+    assert not board.fits((CORNER_OK,), 0, 0)
 
 
 @pytest.mark.spec("SPEC-0003", "AT-0004")
+@pytest.mark.spec("SPEC-0005", "AT-0001")
 def test_fits_rejects_border_clash() -> None:
-    board = empty_board(GOLFING_MADNESS_BORDER)
     clash = Bit(0, 0, north=IN, west=OUT, south=IN, east=IN)  # top[0] is IN
-    assert not fits(board, GOLFING_MADNESS_BORDER, (clash,), 0, 0)
+    assert not Board(GOLFING_MADNESS_BORDER).fits((clash,), 0, 0)
 
 
 @pytest.mark.spec("SPEC-0003", "AT-0004")
+@pytest.mark.spec("SPEC-0005", "AT-0001")
 @pytest.mark.parametrize(("east", "expected"), [(IN, False), (OUT, True)])
 def test_fits_checks_neighbour_tab(east: Tab, expected: bool) -> None:
-    board = empty_board(GOLFING_MADNESS_BORDER)
-    board[0][1] = ("B", Bit(0, 0, north=OUT, west=IN, south=IN, east=IN))
+    board = Board(GOLFING_MADNESS_BORDER)
+    board.place("B", (Bit(0, 0, north=OUT, west=IN, south=IN, east=IN),), 0, 1)
     bit = Bit(0, 0, north=OUT, west=OUT, south=IN, east=east)
-    assert fits(board, GOLFING_MADNESS_BORDER, (bit,), 0, 0) is expected
+    assert board.fits((bit,), 0, 0) is expected
 
 
 @pytest.mark.spec("SPEC-0003", "B-0005")
