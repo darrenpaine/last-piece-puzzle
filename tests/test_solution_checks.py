@@ -3,13 +3,14 @@ from pathlib import Path
 import pytest
 
 from last_piece_puzzle import solver
+from last_piece_puzzle.board import Board
 from last_piece_puzzle.pieces import Piece
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import (
     GOLFING_MADNESS_BORDER,
     GOLFING_MADNESS_PIECES,
 )
 from last_piece_puzzle.solution import load_solution
-from last_piece_puzzle.solver import build_board, check_solution, fits, orientations
+from last_piece_puzzle.solver import check_solution
 
 FIXTURE = Path(__file__).parent / "fixtures" / "golfing_madness_solution_1.txt"
 GRID = load_solution(FIXTURE).grid
@@ -73,24 +74,27 @@ def test_check_rejects_wrong_grids(grid: list[str]) -> None:
 
 
 @pytest.mark.spec("SPEC-0004", "AT-0004")
+@pytest.mark.spec("SPEC-0005", "AT-0001")
 @pytest.mark.parametrize("piece", PIECES, ids=lambda p: p.letter)
 def test_only_correct_placement_fits_gap(piece: Piece) -> None:
-    board = build_board(PIECES, BORDER, GRID)
+    board = Board.from_grid(PIECES, BORDER, GRID)
     assert board is not None
-    correct = {
-        (r, c, cell[1].north, cell[1].west, cell[1].south, cell[1].east)
-        for r, row in enumerate(board)
-        for c, cell in enumerate(row)
-        if cell is not None and cell[0] == piece.letter
-    }
-    for r, c, *_ in correct:
-        board[r][c] = None
+    placed = [
+        (r, c, cell[1])
+        for r in range(board.rows)
+        for c in range(board.cols)
+        if (cell := board.cell(r, c)) is not None and cell[0] == piece.letter
+    ]
+    correct = {(r, c, b.north, b.west, b.south, b.east) for r, c, b in placed}
+    # Each placed bit keeps its offset from the anchor, so any one of them locates the anchor.
+    r, c, bit = placed[0]
+    board.remove(tuple(b for _, _, b in placed), r - bit.row, c - bit.col)
     fitting = {
         frozenset((row + b.row, col + b.col, b.north, b.west, b.south, b.east) for b in placement)
-        for placement in orientations(piece)
-        for row in range(len(board))
-        for col in range(len(board[0]))
-        if fits(board, BORDER, placement, row, col)
+        for placement in piece.placements
+        for row in range(board.rows)
+        for col in range(board.cols)
+        if board.fits(placement, row, col)
     }
     # D and H look the same after a 180 degree turn, tabs included, so compare distinct placements.
     assert fitting == {frozenset(correct)}

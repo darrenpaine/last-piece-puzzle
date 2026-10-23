@@ -35,7 +35,7 @@ Done when: the code produces the same solution as the C++ code.
 Spec: SPEC-0004.
 Done when: the fast tests and the seeded test pass in CI; the slow test passes locally.
 
-4. Refactor into classes, e.g. Board, Piece, PieceSet (rotate, displace, fits, place, remove), and add unit tests for each.
+4. (Done) Refactor into classes, e.g. Board, Piece, PieceSet (rotate, displace, fits, place, remove), and add unit tests for each.
 Spec: SPEC-0005.
 Done when: the unit tests pass and the solution is still produced.
 
