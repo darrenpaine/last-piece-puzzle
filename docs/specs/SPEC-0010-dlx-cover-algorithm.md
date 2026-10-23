@@ -1,6 +1,6 @@
 # SPEC-0010: DLX exact cover algorithm
 
-Status: Reviewed
+Status: Done
 
 ## Goal
 A second solver that treats the puzzle as an exact cover problem (Knuth's Algorithm X, "Dancing
