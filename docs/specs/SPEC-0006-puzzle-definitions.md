@@ -1,6 +1,6 @@
 # SPEC-0006: Puzzle definitions
 
-Status: Draft (updated after PR review: CLI menu)
+Status: Reviewed
 
 ## Goal
 The solver, board and CLI take a `Puzzle` as input and hold no puzzle-specific data, so adding a
