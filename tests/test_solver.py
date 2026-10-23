@@ -3,13 +3,10 @@ from pathlib import Path
 import pytest
 
 from last_piece_puzzle import main, solver
-from last_piece_puzzle.pieces import (
+from last_piece_puzzle.pieces import Bit, Border, Piece, Tab
+from last_piece_puzzle.puzzles.golfing_madness_puzzle import (
     GOLFING_MADNESS_BORDER,
     GOLFING_MADNESS_PIECES,
-    Bit,
-    Border,
-    Piece,
-    Tab,
 )
 from last_piece_puzzle.solution import Solution, load_solution
 from last_piece_puzzle.solver import SolveResult, empty_board, fits, orientations, rotate

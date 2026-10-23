@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from last_piece_puzzle.pieces import GOLFING_MADNESS_BORDER, GOLFING_MADNESS_PIECES, Tab
+from last_piece_puzzle.pieces import Tab
+from last_piece_puzzle.puzzles.golfing_madness_puzzle import (
+    GOLFING_MADNESS_BORDER,
+    GOLFING_MADNESS_PIECES,
+)
 
 CPP_SOURCE = (Path(__file__).parent.parent / "cpp" / "main.cpp").read_text()
 

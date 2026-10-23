@@ -11,9 +11,10 @@ A Python solver that follows the same search as `cpp/main.cpp` and finds the sam
   - `Tab(Enum)`: `IN = 0`, `OUT = 1`, `NONE = -1` (C++ inney / outey / no tab).
   - frozen dataclass `Bit`: `row`, `col` offsets and `north`, `west`, `south`, `east` tabs.
   - frozen dataclass `Piece`: `letter`, `name` (the C++ printout name, e.g. "Bluehat"), `bits: tuple[Bit, ...]`.
-  - `GOLFING_MADNESS_PIECES` (A–N, as in `ResetPiece`) and `GOLFING_MADNESS_BORDER`
-    (`top`, `left`, `right`, `bottom`, as in `InitBoard`).
-    This data moves to `puzzles/` in step 5 (SPEC-0006).
+  - frozen dataclass `Border`: `top`, `left`, `right`, `bottom` tab tuples.
+- `src/last_piece_puzzle/puzzles/golfing_madness_puzzle.py` (moved here from `pieces.py` in PR review):
+  `GOLFING_MADNESS_PIECES` (A–N, as in `ResetPiece`) and `GOLFING_MADNESS_BORDER`
+  (as in `InitBoard`).
 - `src/last_piece_puzzle/solver.py`:
   - `rotate(bit) -> Bit` and `orientations(piece)`: the candidate placements in C++ order.
   - `solve(pieces, border) -> SolveResult`, with `solution: Solution | None` (SPEC-0002 dataclass),

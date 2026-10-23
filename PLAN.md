@@ -39,9 +39,10 @@ Done when: the fast tests and the seeded test pass in CI; the slow test passes l
 Spec: SPEC-0005.
 Done when: the unit tests pass and the solution is still produced.
 
-5. Move the piece and border definitions into `src/last_piece_puzzle/puzzles/`, e.g. `golfing_madness.py`.
-   (They go inside the package so the uv_build layout can import them.)
-   The solver takes a puzzle definition as input, so it holds no puzzle-specific data.
+5. Puzzle definitions. The Golfing Madness pieces and border already moved to
+   `src/last_piece_puzzle/puzzles/golfing_madness_puzzle.py` in step 2.
+   What remains: a `Puzzle` definition (name, pieces, border) that the solver and CLI take as input,
+   so the solver holds no puzzle-specific data and a new puzzle needs only a new module.
 Spec: SPEC-0006.
 Done when: all tests pass and the piece definitions are in the puzzles folder.
 

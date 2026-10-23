@@ -1,5 +1,8 @@
 from last_piece_puzzle import solver
-from last_piece_puzzle.pieces import GOLFING_MADNESS_BORDER, GOLFING_MADNESS_PIECES
+from last_piece_puzzle.puzzles.golfing_madness_puzzle import (
+    GOLFING_MADNESS_BORDER,
+    GOLFING_MADNESS_PIECES,
+)
 
 
 def main() -> None:
