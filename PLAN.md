@@ -11,7 +11,7 @@ Steps 7 to 9 are investigations. They get a spec only if they lead to code that 
    - Add `docs/specs/README.md` (spec index) and SPEC-0001 (spec and id conventions).
 Done when: `uv run pre-commit run --all-files` and `uv run pytest` pass locally and in CI.
 
-1. Check that the original C++ produces a solution, and record that solution as the first test fixture. This is the "Golfing Madness" puzzle.
+1. (Done) Check that the original C++ produces a solution, and record that solution as the first test fixture. This is the "Golfing Madness" puzzle.
    - Build it with `g++ cpp/main.cpp -o build/hercules` and run it. It waits on `getchar()` after a solution, so pipe in a newline.
    - Record the 8×8 letter grid in `tests/fixtures/golfing_madness_solution_1.txt`, along with the
      `Move` count and the run time. These give the cost baseline for the Python port.

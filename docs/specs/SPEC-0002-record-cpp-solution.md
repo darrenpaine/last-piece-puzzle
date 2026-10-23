@@ -1,6 +1,6 @@
 # SPEC-0002: Record the C++ solution
 
-Status: Reviewed
+Status: Done
 
 ## Goal
 Record the solution produced by the original C++ solver (`cpp/main.cpp`, v31) for the
