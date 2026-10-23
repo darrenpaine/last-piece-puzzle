@@ -42,6 +42,12 @@ def empty_board(border: Border) -> Board:
     return [[None] * len(border.top) for _ in border.left]
 
 
+def set_cells(board: Board, placement: Placement, row: int, col: int, letter: str | None) -> None:
+    """Place a piece's bits on the board, or clear them when `letter` is None."""
+    for bit in placement:
+        board[row + bit.row][col + bit.col] = None if letter is None else (letter, bit)
+
+
 def fits(board: Board, border: Border, placement: Placement, row: int, col: int) -> bool:
     """Check bounds, overlap, border tabs and neighbour tabs (C++ Sub1, Sub2, Sub3)."""
     rows, cols = len(board), len(board[0])
@@ -92,16 +98,12 @@ class _Search:
                     return r, c
         raise RuntimeError("board is full")
 
-    def set_cells(self, placement: Placement, row: int, col: int, cell: Cell) -> None:
-        for bit in placement:
-            self.board[row + bit.row][col + bit.col] = cell if cell is None else (cell[0], bit)
-
     def try_piece(self, piece: Piece, row: int, col: int) -> bool:
         """Place `piece` on (row, col) and recurse (C++ CheckFit)."""
         for placement in self.placements[piece.letter]:
             if not fits(self.board, self.border, placement, row, col):
                 continue
-            self.set_cells(placement, row, col, (piece.letter, placement[0]))
+            set_cells(self.board, placement, row, col, piece.letter)
             self.used.add(piece.letter)
             self.moves += 1
             if len(self.used) == len(self.order):
@@ -110,7 +112,7 @@ class _Search:
             for nxt in self.order:
                 if nxt.letter not in self.used and self.try_piece(nxt, next_row, next_col):
                     return True
-            self.set_cells(placement, row, col, None)
+            set_cells(self.board, placement, row, col, None)
             self.used.discard(piece.letter)
             self.moves += 1
         return False
@@ -122,13 +124,65 @@ class _Search:
 def solve(
     pieces: Sequence[Piece],
     border: Border,
+    start_pieces: Sequence[str] | None = None,
     on_start: Callable[[str], None] | None = None,
 ) -> SolveResult:
-    """Find the first solution, trying each start piece at (0, 0) in C++ order (N to A)."""
+    """Find the first solution, trying each start piece at (0, 0) in C++ order (N to A).
+
+    `start_pieces` limits which pieces are tried at (0, 0); the search after that is unchanged.
+    A failed start backtracks fully, so the next start begins on an empty board.
+    """
     search = _Search(pieces, border)
     for piece in search.order:
+        if start_pieces is not None and piece.letter not in start_pieces:
+            continue
         if on_start:
             on_start(piece.letter)
         if search.try_piece(piece, 0, 0):
             return SolveResult(Solution(grid=search.grid()), piece.letter, search.moves)
     return SolveResult(None, None, search.moves)
+
+
+def build_board(pieces: Sequence[Piece], border: Border, grid: Sequence[str]) -> Board | None:
+    """Rebuild a solved board from a letter grid; None if it is not a valid solution."""
+    by_letter = {p.letter: p for p in pieces}
+    if len(grid) != len(border.left) or any(len(row) != len(border.top) for row in grid):
+        return None
+    cells: dict[str, set[tuple[int, int]]] = {}
+    for r, line in enumerate(grid):
+        for c, letter in enumerate(line):
+            cells.setdefault(letter, set()).add((r, c))
+    if cells.keys() != by_letter.keys():
+        return None
+    # Anchor each piece on its first cell (row-major) and keep placements with its exact shape.
+    options: list[tuple[str, int, int, list[Placement]]] = []
+    for letter in sorted(cells, key=lambda letter: min(cells[letter])):
+        row, col = min(cells[letter])
+        matches = [
+            p
+            for p in orientations(by_letter[letter])
+            if {(row + b.row, col + b.col) for b in p} == cells[letter]
+        ]
+        if not matches:
+            return None
+        options.append((letter, row, col, matches))
+    board = empty_board(border)
+
+    def place(i: int) -> bool:
+        if i == len(options):
+            return True
+        letter, row, col, matches = options[i]
+        for placement in matches:
+            if fits(board, border, placement, row, col):
+                set_cells(board, placement, row, col, letter)
+                if place(i + 1):
+                    return True
+                set_cells(board, placement, row, col, None)
+        return False
+
+    return board if place(0) else None
+
+
+def check_solution(pieces: Sequence[Piece], border: Border, grid: Sequence[str]) -> bool:
+    """True if the grid can be built from the pieces with every tab fitting."""
+    return build_board(pieces, border, grid) is not None
