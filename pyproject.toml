@@ -1,0 +1,17 @@
+[project]
+name = "last-piece-puzzle"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Darren Paine", email = "darren_paine@hotmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+last-piece-puzzle = "last_piece_puzzle:main"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
