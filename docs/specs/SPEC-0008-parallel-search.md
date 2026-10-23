@@ -6,7 +6,8 @@ Status: Draft
 Run the search on several CPU cores at once, so a full solve takes a fraction of the step 6 time, while
 giving exactly the same result as the single-process search.
 
-## Observed (prototype, Golfing Madness, default mode, 22-core machine, `ProcessPoolExecutor`)
+## Observed
+### Prototype, Golfing Madness, default mode, 22-core machine, `ProcessPoolExecutor`
 Single process: 1,430,150 moves, about 14.2 s.
 
 | Split                                  | Tasks | 8 workers | 16 workers | 22 workers |
