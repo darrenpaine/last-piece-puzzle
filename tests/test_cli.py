@@ -1,11 +1,12 @@
-from collections.abc import Iterator
+import re
+from collections.abc import Callable, Iterator
 
 import pytest
 
 from last_piece_puzzle import main, solver
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.solution import Solution
-from last_piece_puzzle.solver import SolveResult
+from last_piece_puzzle.solver import FoundSolution, SolveResult
 
 
 @pytest.fixture
@@ -15,7 +16,7 @@ def solved(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     def fake_solve(puzzle: Puzzle, *args: object, **kwargs: object) -> SolveResult:
         names.append(puzzle.name)
-        return SolveResult(Solution(("A",)), "A", 1)
+        return SolveResult((FoundSolution(Solution(("A",)), "A", 1),), 1, 2)
 
     monkeypatch.setattr(solver, "solve", fake_solve)
     return names
@@ -86,3 +87,57 @@ def test_menu_invalid_then_valid(
     main([])
     assert capsys.readouterr().out.count("Not a valid choice.") == 1
     assert solved == ["Golfing Madness"]
+
+
+def stub_solutions(monkeypatch: pytest.MonkeyPatch, found: tuple[FoundSolution, ...]) -> None:
+    """Stub the solver to report `found`, calling on_solution as the real search does."""
+
+    def fake_solve(
+        puzzle: Puzzle,
+        *args: object,
+        on_solution: Callable[[int, FoundSolution], None] | None = None,
+        **kwargs: object,
+    ) -> SolveResult:
+        for number, item in enumerate(found, start=1):
+            if on_solution:
+                on_solution(number, item)
+        return SolveResult(found, len(found), 99)
+
+    monkeypatch.setattr(solver, "solve", fake_solve)
+
+
+@pytest.mark.spec("SPEC-0007", "AT-0009")
+def test_prints_found_lines_key_once_and_numbered_solutions(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    first = FoundSolution(Solution(("EEEHJJJJ",)), "E", 10)
+    second = FoundSolution(Solution(("AKKKKNNF",)), "A", 20)
+    stub_solutions(monkeypatch, (first, second))
+    main(["golfing_madness"])
+    out = capsys.readouterr().out
+    lines = [
+        "Solution 1 found starting with piece E at move 10",
+        "Solution 2 found starting with piece A at move 20",
+        "Key:",
+        "A = Bluehat",
+        "N = ZigZag",
+        "Solution 1 (start piece E):",
+        "E E E H J J J J",
+        "Solution 2 (start piece A):",
+        "A K K K K N N F",
+    ]
+    positions = [out.index(line) for line in lines]
+    assert positions == sorted(positions)
+    assert out.count("Key:") == 1
+    assert re.search(r"\n2 solutions found in 99 moves, \d+\.\d s\.\n$", out)
+
+
+@pytest.mark.spec("SPEC-0007", "AT-0009")
+def test_prints_only_no_solutions_line(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stub_solutions(monkeypatch, ())
+    main(["golfing_madness"])
+    out = capsys.readouterr().out
+    assert "Key:" not in out
+    assert re.search(r"No solutions found in 99 moves, \d+\.\d s\.\n$", out)

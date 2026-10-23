@@ -55,6 +55,29 @@ class Piece:
             bits = tuple(b.rotated() for b in bits)
         return tuple(placements)
 
+    @cached_property
+    def distinct_placements(self) -> tuple[Placement, ...]:
+        """`placements` without rotations that repeat an earlier one, shape and tabs (SPEC-0007)."""
+        count = len(self.bits)
+        kept: list[Placement] = []
+        seen: set[frozenset[tuple[int, int, Tab, Tab, Tab, Tab]]] = set()
+        for k in range(4):
+            rotation = self.placements[k * count : (k + 1) * count]
+            top_row, top_col = min((b.row, b.col) for b in rotation[0])
+            key = frozenset(
+                (b.row - top_row, b.col - top_col, b.north, b.west, b.south, b.east)
+                for b in rotation[0]
+            )
+            if key not in seen:
+                seen.add(key)
+                kept.extend(rotation)
+        return tuple(kept)
+
+    @property
+    def distinct_rotations(self) -> int:
+        """1 if the piece is the same after 90 degrees, 2 if after 180 degrees, otherwise 4."""
+        return len(self.distinct_placements) // len(self.bits)
+
 
 class PieceSet:
     """The pieces of one puzzle, in definition order, with the C++ search order."""
