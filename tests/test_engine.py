@@ -1,9 +1,11 @@
 import pytest
 
+from last_piece_puzzle import parallel
 from last_piece_puzzle.board import Board
-from last_piece_puzzle.engine import EAST, NORTH, SOUTH, WEST, Candidates, Check
+from last_piece_puzzle.engine import EAST, NORTH, SOUTH, WEST, Candidates, Check, Engine
 from last_piece_puzzle.pieces import Piece, Placement, Tab
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
+from last_piece_puzzle.solver import Solver
 
 CELLS = [(0, 0), (3, 4), (PUZZLE.rows - 1, PUZZLE.cols - 1)]
 CANDIDATES = {mode: Candidates(PUZZLE, all_rotations=mode) for mode in (False, True)}
@@ -72,3 +74,28 @@ def test_candidate_matches_its_placement(
                     expected.add(Check(r * cols + c, facing, tab.value))
         assert len(candidate.checks) == len(expected)
         assert set(candidate.checks) == expected
+
+
+@pytest.mark.spec("SPEC-0009", "AT-0001")
+def test_task_paths_merge_to_single_process_result() -> None:
+    # Runs each task's prefix path in this process, so the engine's path placing is covered too.
+    one = Solver(PUZZLE)
+    steps = parallel.split(one, ["N"], workers=2)
+    tasks = [step for step in steps if isinstance(step, parallel.Task)]
+    assert max(len(task.path) for task in tasks) > 1
+    worker = Solver(PUZZLE)
+    results = iter([parallel.run_task(worker, task) for task in tasks])
+    assert parallel._merge(steps, results, None, None) == one.solve(["N"])
+
+
+@pytest.mark.spec("SPEC-0009", "B-0002")
+def test_path_that_does_not_fit_is_rejected() -> None:
+    engine = Engine(CANDIDATES[False])
+    misfit = next(
+        (piece.letter, index)
+        for piece in PUZZLE.pieces
+        for index in range(len(piece.distinct_placements))
+        if index not in {c.placement_index for c in CANDIDATES[False].at(0, 0, piece.letter)}
+    )
+    with pytest.raises(ValueError, match="does not fit"):
+        engine.run_path([misfit])

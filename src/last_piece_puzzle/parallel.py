@@ -120,15 +120,7 @@ def _init_worker(puzzle: Puzzle, all_rotations: bool) -> None:
 def run_task(solver: Solver, task: Task) -> TaskResult:
     """Place the task's prefix without counting moves, then search below its last placement."""
     solver.reset()
-    solver.start = task.path[0][0]
-    for letter, index in task.path[:-1]:
-        row, col = solver.board.first_free() or (0, 0)
-        solver.board.place(letter, solver.placements[letter][index], row, col)
-        solver.used.add(letter)
-    letter, index = task.path[-1]
-    row, col = solver.board.first_free() or (0, 0)
-    piece = solver.pieces.by_letter[letter]
-    solver.descend(piece, solver.placements[letter][index], row, col)
+    solver.engine.run_path(task.path)
     return TaskResult(solver.moves, solver.boards, tuple(solver.found.values()))
 
 
