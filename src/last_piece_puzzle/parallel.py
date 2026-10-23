@@ -1,12 +1,34 @@
-"""Split the search into tasks, run them on worker processes, merge in search order (SPEC-0008)."""
+"""Split the search into tasks, run them on worker processes, merge in search order (SPEC-0008).
 
-from collections.abc import Callable, Iterator, Sequence
+How the split works, using Golfing Madness as the example:
+
+- Depth 1: every start piece is tried at (0, 0), in search order (N to A). Each placement of it that
+  fits becomes a task, e.g. E has 2 placements that fit in the corner: ("E", 11) and ("E", 13).
+  That gives only 15 tasks, and the E and C ones take about 4 s each, so they would not balance.
+- Depth 2: under each start placement, every unused piece is tried at the next free cell. Each one
+  that fits becomes a task with a path of two placements, e.g. (("E", 11), ("M", 0)): 114 tasks.
+- Depth 3 gives 1,101 tasks, and depth 4 gives 4,408, of which E has 1,079, C 574 and A 52.
+
+`split` goes one level deeper until there are at least `TASKS_PER_WORKER` tasks per worker (16
+workers: depth 4). A worker places a task's path, each placement at the first free cell, then
+searches everything below it. A `Start` step marks each new start piece, and the `1` steps stand for
+placing and removing the placements above the tasks. So `_merge` can rebuild the move count and
+solution order of a single-process search exactly.
+"""
+
+from collections.abc import Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
 
 from last_piece_puzzle.board import Board
 from last_piece_puzzle.puzzle import Puzzle
-from last_piece_puzzle.solver import FoundSolution, Solver, SolveResult
+from last_piece_puzzle.solver import (
+    FoundSolution,
+    SolutionCallback,
+    Solver,
+    SolveResult,
+    StartCallback,
+)
 
 TASKS_PER_WORKER = 100
 
@@ -118,8 +140,8 @@ def _run_task(task: Task) -> TaskResult:
 def solve(
     solver: Solver,
     start_pieces: Sequence[str] | None,
-    on_start: Callable[[str], None] | None,
-    on_solution: Callable[[int, FoundSolution], None] | None,
+    on_start: StartCallback | None,
+    on_solution: SolutionCallback | None,
     workers: int,
 ) -> SolveResult:
     steps = split(solver, start_pieces, workers)
@@ -133,8 +155,8 @@ def solve(
 def _merge(
     steps: list[Step],
     results: Iterator[TaskResult],
-    on_start: Callable[[str], None] | None,
-    on_solution: Callable[[int, FoundSolution], None] | None,
+    on_start: StartCallback | None,
+    on_solution: SolutionCallback | None,
 ) -> SolveResult:
     """Walk the steps in search order, adding moves and solutions as the search would have."""
     moves = 0

@@ -1,7 +1,8 @@
 """Depth-first solver ported from cpp/main.cpp (SPEC-0003, SPEC-0005, SPEC-0006, SPEC-0007)."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from typing import Protocol
 
 from last_piece_puzzle.board import Board
 from last_piece_puzzle.pieces import Piece, Placement
@@ -24,6 +25,18 @@ class SolveResult:
     moves: int
 
 
+class StartCallback(Protocol):
+    """Called when the search starts with a new piece at (0, 0)."""
+
+    def __call__(self, letter: str, /) -> None: ...
+
+
+class SolutionCallback(Protocol):
+    """Called with the number (from 1) and details of each new distinct solution."""
+
+    def __call__(self, number: int, found: FoundSolution, /) -> None: ...
+
+
 class Solver:
     def __init__(self, puzzle: Puzzle, all_rotations: bool = False) -> None:
         """`all_rotations` tries all 4 rotations of every piece, as the C++ does."""
@@ -36,7 +49,7 @@ class Solver:
         }
         self.reset()
 
-    def reset(self, on_solution: Callable[[int, FoundSolution], None] | None = None) -> None:
+    def reset(self, on_solution: SolutionCallback | None = None) -> None:
         """Empty the board and forget the moves and solutions so far."""
         self.board = Board(self.border)
         self.used: set[str] = set()
@@ -49,8 +62,8 @@ class Solver:
     def solve(
         self,
         start_pieces: Sequence[str] | None = None,
-        on_start: Callable[[str], None] | None = None,
-        on_solution: Callable[[int, FoundSolution], None] | None = None,
+        on_start: StartCallback | None = None,
+        on_solution: SolutionCallback | None = None,
         workers: int | None = None,
     ) -> SolveResult:
         """Find every solution, trying each start piece at (0, 0) in C++ order (N to A).
@@ -114,8 +127,8 @@ class Solver:
 def solve(
     puzzle: Puzzle,
     start_pieces: Sequence[str] | None = None,
-    on_start: Callable[[str], None] | None = None,
-    on_solution: Callable[[int, FoundSolution], None] | None = None,
+    on_start: StartCallback | None = None,
+    on_solution: SolutionCallback | None = None,
     all_rotations: bool = False,
     workers: int | None = None,
 ) -> SolveResult:
