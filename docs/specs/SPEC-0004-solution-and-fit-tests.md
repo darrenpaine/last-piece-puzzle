@@ -1,6 +1,6 @@
 # SPEC-0004: Solution and fit tests
 
-Status: Reviewed
+Status: Done
 
 ## Goal
 Show that the Python solver produces the C++ solution quickly, that it rejects wrong placements,
@@ -25,6 +25,10 @@ and which start pieces lead to a solution.
 | A     | yes    | 22,970  | 0.2 s |
 
 The moves for N to F plus E add up to 1,529,410, the C++ total. M, H and F cannot sit in the corner at all.
+
+Found while writing AT-0004: D and H look the same after a 180° turn, tabs included, so rotations 0 and 2
+give an identical placement. Each one still has only one distinct placement in its gap. Step 6 must
+remove these duplicates when it counts solutions.
 
 ## Inputs / Outputs
 - `solve(pieces, border, start_pieces: Sequence[str] | None = None, on_start=None)`:
