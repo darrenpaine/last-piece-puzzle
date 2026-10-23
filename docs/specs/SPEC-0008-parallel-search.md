@@ -1,6 +1,6 @@
 # SPEC-0008: Parallel search
 
-Status: Draft
+Status: Reviewed
 
 ## Goal
 Run the search on several CPU cores at once, so a full solve takes a fraction of the step 6 time, while
