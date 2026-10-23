@@ -3,7 +3,7 @@
 Each step from 1 to 6 starts with its spec in `docs/specs/`, which is reviewed before any code is written.
 Steps 7 to 9 are investigations. They get a spec only if they lead to code that is kept.
 
-0. Scaffolding.
+0. Scaffolding. (Done)
    - Branch renamed from `master` to `main`, initial commit made (done).
    - After approval, add dev dependencies with `uv add --dev`: pytest, pytest-cov, ruff, mypy, pre-commit.
    - Add `.pre-commit-config.yaml` (ruff, ruff-format, mypy) and `.github/workflows/ci.yml` (lint, types, tests).

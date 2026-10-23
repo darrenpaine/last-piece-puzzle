@@ -15,3 +15,30 @@ last-piece-puzzle = "last_piece_puzzle:main"
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.0",
+    "pre-commit>=4.7.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "-p", "pytester"]
+markers = [
+    "spec(spec_id, *item_ids): links a test to spec ids, e.g. spec(\"SPEC-0001\", \"AT-0001\")",
+    "slow: long-running test; CI skips it with -m \"not slow\"",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "ANN"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
