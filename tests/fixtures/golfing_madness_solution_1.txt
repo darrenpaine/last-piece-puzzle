@@ -1,0 +1,12 @@
+# source: cpp/main.cpp v31
+# start_piece: E
+# moves: 1529410
+# runtime: ~1.2s (g++ 15.2 -O2)
+E E E H J J J J
+E H H H G N N J
+K H G G G G N N
+K K L L M M M N
+K L L M M D D F
+K C C C C D F F
+A C I I D D B F
+A A A I I I B B
