@@ -21,6 +21,21 @@ Splitting by start piece alone is limited by the E and C branches (about 4–5 s
 placements deep gives many small tasks and balances well, at about 6.7× faster. More than 16 workers
 does not help on this machine.
 
+### Free-threaded Python (3.14.8t, GIL off), same 4,408 tasks
+| Run                                   | 1     | 4 workers | 8 workers | 16 workers | 22 workers |
+|---------------------------------------|-------|-----------|-----------|------------|------------|
+| standard build, threads               | 14.2 s| 14.6 s    | 14.6 s    | 14.5 s     | 14.6 s     |
+| standard build, processes             |       | 6.0 s     | 3.6 s     | 2.0 s      | 2.2 s      |
+| free-threaded, threads                | 15.0 s| 13.0 s    | 14.3 s    | 21.3 s     | 24.1 s     |
+| free-threaded, threads, puzzle copied per thread |  | 11.9 s | 15.0 s | 21.0 s |       |
+| free-threaded, processes              |       | 6.2 s     | 3.9 s     | 2.4 s      | 2.4 s      |
+
+On the free-threaded build, threads barely help, and they get slower above 4. A likely cause is the
+threads contending to update reference counts on shared objects (`Tab` members, bits, tuples). Copying the
+puzzle per thread does not fix it, because enum members and classes are still shared. Making threads scale would need the data
+stored as plain ints or bitboards (step 8). For now processes are the fastest on both builds, so this
+spec uses processes. Threads can be tried again after step 8.
+
 ## Inputs / Outputs
 - `solve(puzzle, ..., workers: int | None = None)`:
   - `None` or `1` runs the current single-process search;
@@ -67,6 +82,7 @@ does not help on this machine.
   prints `(3 workers)` in the final line. Without `--workers`, it passes `os.process_cpu_count()`.
 
 ## Out of scope
-- The free-threaded Python build (threads instead of processes). It needs a separate Python install and
-  every dependency to support it; it can be tried later if wanted.
+- A thread-based option for the free-threaded build. Measured above, it is slower than processes for now;
+  try it again after step 8. The free-threaded Python is installed locally with `uv python install 3.14t`,
+  but the project and CI stay on the standard build.
 - Making each task faster (step 8).
