@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 
-from last_piece_puzzle import solver
 from last_piece_puzzle.board import Board
 from last_piece_puzzle.pieces import Piece
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
@@ -20,17 +19,6 @@ def check(grid: list[str] | tuple[str, ...]) -> bool:
 
 def swap_letters(grid: tuple[str, ...], a: str, b: str) -> list[str]:
     return [row.translate(str.maketrans(a + b, b + a)) for row in grid]
-
-
-@pytest.mark.spec("SPEC-0004", "AT-0001")
-def test_seeded_start_finds_cpp_solution() -> None:
-    started: list[str] = []
-    result = solver.solve(PUZZLE, start_pieces=["E"], on_start=started.append)
-    assert result.solution is not None
-    assert result.solution.grid == GRID
-    assert result.start_piece == "E"
-    assert result.moves == 332262
-    assert started == ["E"]
 
 
 @pytest.mark.spec("SPEC-0004", "AT-0002")
@@ -94,17 +82,3 @@ def test_only_correct_placement_fits_gap(piece: Piece) -> None:
     }
     # D and H look the same after a 180 degree turn, tabs included, so compare distinct placements.
     assert fitting == {frozenset(correct)}
-
-
-@pytest.mark.spec("SPEC-0004", "AT-0005")
-@pytest.mark.slow
-def test_only_a_c_e_start_a_solution() -> None:
-    solved = {}
-    for piece in PUZZLE.pieces:
-        result = solver.solve(PUZZLE, start_pieces=[piece.letter])
-        if result.solution is not None:
-            solved[piece.letter] = result.solution.grid
-    assert solved.keys() == {"A", "C", "E"}
-    assert solved["E"] == GRID
-    for grid in solved.values():
-        assert check(grid)

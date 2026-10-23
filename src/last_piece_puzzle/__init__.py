@@ -1,4 +1,5 @@
 import argparse
+import time
 from collections.abc import Sequence
 
 from last_piece_puzzle import puzzles, solver
@@ -6,7 +7,7 @@ from last_piece_puzzle.puzzle import Puzzle
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    """Solve a puzzle chosen by key, or from a menu, and print it in the C++ layout."""
+    """Solve a puzzle chosen by key, or from a menu, and print its solutions."""
     keys = puzzles.available()
     parser = argparse.ArgumentParser(
         prog="last-piece-puzzle", description="Solve a Last Piece Puzzle."
@@ -57,18 +58,29 @@ def choose(keys: Sequence[str]) -> str | None:
 
 
 def solve_and_print(puzzle: Puzzle) -> None:
+    """Find every solution, then print the key once and the numbered solutions (SPEC-0007)."""
     print(f"Last Piece Puzzle solver: {puzzle.name}")
+    started = time.perf_counter()
     result = solver.solve(
         puzzle,
         on_start=lambda letter: print(f"Trying to start puzzle with piece {letter}...", flush=True),
+        on_solution=lambda number, found: print(
+            f"Solution {number} found starting with piece {found.start_piece}"
+            f" at move {found.found_at_move}",
+            flush=True,
+        ),
     )
-    if result.solution is None:
-        print(f"Solution NOT Found in {result.moves} Moves.")
+    seconds = time.perf_counter() - started
+    if not result.solutions:
+        print(f"No solutions found in {result.moves} moves, {seconds:.1f} s.")
         return
-    print(f"Solution FOUND starting with piece {result.start_piece}")
-    print(f"\nBoard at Move {result.moves}:")
-    for row in result.solution.grid:
-        print(" ".join(row))
-    print()
+    print("\nKey:")
     for piece in puzzle.pieces:
         print(f"{piece.letter} = {piece.name}")
+    for number, found in enumerate(result.solutions, start=1):
+        print(f"\nSolution {number} (start piece {found.start_piece}):")
+        for row in found.solution.grid:
+            print(" ".join(row))
+    count = len(result.solutions)
+    plural = "solution" if count == 1 else "solutions"
+    print(f"\n{count} {plural} found in {result.moves} moves, {seconds:.1f} s.")

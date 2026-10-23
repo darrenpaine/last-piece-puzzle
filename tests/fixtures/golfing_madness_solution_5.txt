@@ -1,0 +1,11 @@
+# source: python solve
+# start_piece: A
+# found_at_move: 1377280
+A K K K K N N F
+A A A K N N F F
+E E E G N D D F
+E G G G G D C C
+L H H M D D I C
+L L H M M I I C
+J L H H M I B C
+J J J J M I B B

@@ -34,3 +34,14 @@ def load_solution(path: Path) -> Solution:
     if len(rows) != GRID_SIZE:
         raise ValueError(f"grid has {len(rows)} rows, expected {GRID_SIZE}")
     return Solution(grid=tuple(rows), metadata=metadata)
+
+
+def format_solution(solution: Solution) -> str:
+    """The file format read by `load_solution`: metadata lines, then the grid (SPEC-0007)."""
+    lines = [f"# {key}: {value}" for key, value in solution.metadata.items()]
+    lines += [" ".join(row) for row in solution.grid]
+    return "\n".join(lines) + "\n"
+
+
+def save_solution(path: Path, solution: Solution) -> None:
+    path.write_text(format_solution(solution))
