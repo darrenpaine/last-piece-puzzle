@@ -1,6 +1,6 @@
 # SPEC-0009: Fast search engine
 
-Status: Done
+Status: Reviewed (two searches decided in PR #12 review)
 
 ## Goal
 Make each search several times faster without changing what it finds or how it counts. The same
@@ -47,9 +47,17 @@ build, but processes are still a little faster and work on the standard build. *
     - the placement index.
   - `Engine`: the search, using a 64-bit occupancy int and tab arrays of ints. It keeps the moves, the
     full-board count and the solutions found, with the same counting as `Solver` (SPEC-0007 B-0001).
-- `Solver` keeps its public API (`Solver(puzzle, all_rotations)`, `solve(...)`, `reset`) and runs the
-  search with `Engine`. `parallel.py` workers run their tasks with `Engine`, starting each task from its
-  prefix path.
+- Two searches, kept side by side (decided in PR #12 review, 2026-10-23):
+  - `Solver` keeps the original board search unchanged (`search` / `descend` on a `Board`). It is the
+    readable reference port of the C++.
+  - New `FastSolver(Solver)` in `engine.py` runs the same search with `Engine`. It has the same API, and it
+    builds its `Candidates` only when it is created, so plain `Solver` and its other subclasses never pay for them.
+  - `solve(puzzle, ..., method="fastsearch")` gains `method`: `"fastsearch"` (the default, `FastSolver`)
+    or `"search"` (`Solver`).
+  - `parallel.py` workers build the same solver class as the caller and run each task with it
+    (`Engine.run_path` for `FastSolver`, the board prefix replay for `Solver`).
+  - CLI: `--method {fastsearch,search}`, default `fastsearch`. The output is the same for both.
+    (SPEC-0010 adds `dlx` and makes it the CLI default.)
 - `Board`, `Piece.placements` etc. stay as they are; `Board.from_grid` and `check_solution` still use them.
 
 ## Behaviour
@@ -60,15 +68,21 @@ build, but processes are still a little faster and work on the standard build. *
   there, which can never fit. Overlap and neighbour tabs are checked at run time.
 - B-0003: The single-process full search (default mode) is at least 3× faster than before (14.2 s →
   about 5 s or less). This is measured and noted in the PR, not tested.
+- B-0004: `fastsearch` and `search` give identical results (solutions, order, `found_at_move`,
+  `times_found`, `boards_found`, `moves`, callbacks) for every puzzle, mode and worker count.
 
 ## Acceptance tests
-- AT-0001: All existing tests pass unchanged, including every exact move count (B-0001).
+- AT-0001: All existing tests pass, including every exact move count (B-0001). The tests that check
+  exact results run with both `method="fastsearch"` and `method="search"` (B-0004).
 - AT-0002: For each Golfing Madness piece, the candidates at a cell equal the placements for which
   `Board(border).fits(placement, row, col)` is true on an empty board, in the same order. Checked at
   (0, 0), at a middle cell and at the bottom-right corner (B-0002).
 - AT-0003: A candidate's mask, cell tabs and neighbour checks match its placement: the cell bits equal
   the placement's cells, and the checks cover exactly the bit sides that have a tab and face an on-board
   cell outside the piece (B-0002).
+
+- AT-0004: `main(["golfing_madness", "--method", "search"])` and the default each pass their method to
+  `solve` (stubbed), and an unknown method exits with status 2.
 
 ## Out of scope
 - Pruning, DLX and GPU (above).
