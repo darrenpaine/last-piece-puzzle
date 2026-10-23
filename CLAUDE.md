@@ -16,7 +16,7 @@ for one of the puzzles ("Golfing Madness") and extended to cover the whole serie
 - Models are stdlib dataclasses and `Enum` (no pydantic)
 
 ## Commands
-Run these before saying a task is done. Until PLAN.md step 0 is done, only Install and Run work.
+Run these before saying a task is done.
 
 | Task           | Command                                                    |
 |----------------|------------------------------------------------------------|

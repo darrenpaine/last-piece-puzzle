@@ -1,6 +1,6 @@
 # SPEC-0001: Spec and id conventions
 
-Status: Draft
+Status: Done
 
 ## Goal
 Each requirement can be traced from its spec to the tests that check it.
