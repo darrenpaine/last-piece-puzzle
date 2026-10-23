@@ -1,6 +1,6 @@
 # SPEC-0005: Object model
 
-Status: Reviewed
+Status: Done
 
 ## Goal
 Turn the free functions in `solver.py` into classes with clear jobs (Piece, PieceSet, Board, Solver)
