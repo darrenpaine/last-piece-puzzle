@@ -5,8 +5,8 @@ Status: Done
 ## Goal
 A second solver that treats the puzzle as an exact cover problem (Knuth's Algorithm X, "Dancing
 Links" / DLX), with an extra rule for tabs. It finds the same solutions as the depth-first search (DFS)
-much faster, and it becomes the CLI default (`--method dlx`). The DFS stays available as `--method search`,
-with its exact move counts, C++ mode and workers.
+much faster, and it becomes the CLI default (`--method dlx`). The depth-first searches stay available as
+`--method fastsearch` and `--method search` (SPEC-0009), with their exact move counts, C++ mode and workers.
 
 ## How it works
 ### 1. The puzzle as a table
@@ -65,13 +65,14 @@ Both DLX versions found exactly the 5 fixture solutions, each once.
     row's `excludes` bitset.
   - `DlxSolver(Solver)`: overrides `solve(start_pieces=None, on_start=None, on_solution=None, workers=None)`
     and returns the usual `SolveResult`.
-- `solve(puzzle, ..., method="search")` in `solver.py` gains `method`: `"search"` (the DFS, current
-  behaviour) or `"dlx"`. The function's default stays `"search"`, so code and tests that need the exact move
-  counts or the C++ comparison get them without asking.
-- CLI: `--method {dlx,search}`, **default `dlx`**.
+- `solve(puzzle, ..., method=...)` in `solver.py` accepts `"dlx"` as well as SPEC-0009's `"fastsearch"`
+  and `"search"`. The function's default stays `"fastsearch"`, so code and tests that need the exact move
+  counts or the C++ comparison get them without asking. `SEARCH_METHODS` names the two depth-first searches.
+- CLI: `--method {dlx,fastsearch,search}`, **default `dlx`**. (Rebased onto SPEC-0009, which added
+  `fastsearch` and `search`.)
   - With `dlx`, the final line reads `5 solutions found in 19469 rows chosen, 0.1 s (DLX).`
     `--workers` and the progress lines for start pieces still work, but DLX runs in one process.
-  - With `search`, the output is as now: `... moves, 2.5 s (16 workers).`
+  - With `fastsearch` or `search`, the output is as now: `... moves, 1.2 s (22 workers).`
   - The default is switched to `dlx` in the last commit of this work, after the DLX tests pass.
 
 ## Behaviour
@@ -101,7 +102,8 @@ Both DLX versions found exactly the 5 fixture solutions, each once.
 - AT-0005: With `solve` stubbed, `main(["golfing_madness"])` and `main(["golfing_madness", "--method", "dlx"])`
   pass `method="dlx"` and print the DLX final line. `main(["golfing_madness", "--method", "search"])` passes
   `method="search"` and prints the moves and workers line. An unknown method exits with status 2.
-- AT-0006: `solve(PUZZLE)` with no `method` still uses the search: the existing move-count tests pass unchanged.
+- AT-0006: `solve(PUZZLE)` with no `method` still uses a depth-first search (`fastsearch`): the existing
+  move-count tests pass unchanged.
 
 ## Out of scope
 - Running DLX in parallel (not needed at this speed).
