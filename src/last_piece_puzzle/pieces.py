@@ -73,7 +73,7 @@ class Piece:
                 kept.extend(rotation)
         return tuple(kept)
 
-    @property
+    @cached_property
     def distinct_rotations(self) -> int:
         """1 if the piece is the same after 90 degrees, 2 if after 180 degrees, otherwise 4."""
         return len(self.distinct_placements) // len(self.bits)
