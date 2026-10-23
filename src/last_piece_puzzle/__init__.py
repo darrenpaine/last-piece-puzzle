@@ -1,4 +1,5 @@
 import argparse
+import os
 import time
 from collections.abc import Sequence
 
@@ -14,6 +15,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     parser.add_argument("puzzle", nargs="?", choices=keys, help="puzzle to solve (default: menu)")
     parser.add_argument("--list", action="store_true", help="list the available puzzles")
+    parser.add_argument(
+        "--workers",
+        type=positive_int,
+        default=os.process_cpu_count() or 1,
+        help="worker processes for the search (default: number of CPUs; 1 = single process)",
+    )
     args = parser.parse_args(argv)
     if args.list:
         for key in keys:
@@ -26,7 +33,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         puzzle = puzzles.load(chosen)
     except ValueError as error:
         parser.exit(1, f"last-piece-puzzle: {error}\n")
-    solve_and_print(puzzle)
+    solve_and_print(puzzle, args.workers)
+
+
+def positive_int(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be 1 or more")
+    return value
 
 
 def describe(key: str) -> str:
@@ -57,7 +71,7 @@ def choose(keys: Sequence[str]) -> str | None:
         print("Not a valid choice.")
 
 
-def solve_and_print(puzzle: Puzzle) -> None:
+def solve_and_print(puzzle: Puzzle, workers: int = 1) -> None:
     """Find every solution, then print the key once and the numbered solutions (SPEC-0007)."""
     print(f"Last Piece Puzzle solver: {puzzle.name}")
     started = time.perf_counter()
@@ -69,10 +83,12 @@ def solve_and_print(puzzle: Puzzle) -> None:
             f" at move {found.found_at_move}",
             flush=True,
         ),
+        workers=workers,
     )
     seconds = time.perf_counter() - started
+    used = f"({workers} {'worker' if workers == 1 else 'workers'})"
     if not result.solutions:
-        print(f"No solutions found in {result.moves} moves, {seconds:.1f} s.")
+        print(f"No solutions found in {result.moves} moves, {seconds:.1f} s {used}.")
         return
     print("\nKey:")
     for piece in puzzle.pieces:
@@ -83,4 +99,4 @@ def solve_and_print(puzzle: Puzzle) -> None:
             print(" ".join(row))
     count = len(result.solutions)
     plural = "solution" if count == 1 else "solutions"
-    print(f"\n{count} {plural} found in {result.moves} moves, {seconds:.1f} s.")
+    print(f"\n{count} {plural} found in {result.moves} moves, {seconds:.1f} s {used}.")

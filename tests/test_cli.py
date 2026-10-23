@@ -129,7 +129,7 @@ def test_prints_found_lines_key_once_and_numbered_solutions(
     positions = [out.index(line) for line in lines]
     assert positions == sorted(positions)
     assert out.count("Key:") == 1
-    assert re.search(r"\n2 solutions found in 99 moves, \d+\.\d s\.\n$", out)
+    assert re.search(r"\n2 solutions found in 99 moves, \d+\.\d s \(\d+ workers?\)\.\n$", out)
 
 
 @pytest.mark.spec("SPEC-0007", "AT-0009")
@@ -140,4 +140,4 @@ def test_prints_only_no_solutions_line(
     main(["golfing_madness"])
     out = capsys.readouterr().out
     assert "Key:" not in out
-    assert re.search(r"No solutions found in 99 moves, \d+\.\d s\.\n$", out)
+    assert re.search(r"No solutions found in 99 moves, \d+\.\d s \(\d+ workers?\)\.\n$", out)
