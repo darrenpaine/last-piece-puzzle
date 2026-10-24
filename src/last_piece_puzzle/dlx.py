@@ -75,8 +75,22 @@ class CoverTable:
     """The exact cover table of a puzzle: rows, column bitsets and each row's `excludes`."""
 
     def __init__(self, puzzle: Puzzle) -> None:
+        """Build the table in three passes: the rows, then the columns, then each row's excludes.
+
+        Every set is one Python int: bit i is set when row i (or column i) is in the set.
+        - rows         every way a piece can sit on the board (`CoverRow`), in piece search order
+        - columns[k]   the rows that cover column k: a board cell, or a piece
+        - covers[i]    the columns that row i covers: its cells and its piece
+        - excludes[i]  the rows that can't go with row i: every row sharing a column with it
+                       (itself too), plus the rows that clash with it on tabs
+        """
         rows, cols = puzzle.rows, puzzle.cols
         board = Board(puzzle.border)  # empty: `fits` checks bounds and border tabs only
+
+        # Pass 1: the rows. Each distinct rotation appears once per bit, with that bit as the
+        # anchor (offset (0, 0)). Keep only the one anchored on its first cell in reading order,
+        # so each placement gives one row, then try it at every cell (r, c) of the board.
+        # `fits` drops positions that run off the board or put a tab against a matching border.
         self.rows: tuple[CoverRow, ...] = tuple(
             CoverRow(piece.letter, index, placement, r, c)
             for piece in puzzle.piece_set.search_order
@@ -86,25 +100,34 @@ class CoverTable:
             for c in range(cols)
             if board.fits(placement, r, c)
         )
+        # Pass 2: the columns. Columns: the cells in reading order (cell (r, c) is column
+        # r * cols + c), then the pieces in definition order. `letters` maps a piece to its column.
         letters = {piece.letter: rows * cols + k for k, piece in enumerate(puzzle.pieces)}
-        # Columns: the cells in reading order, then the pieces in definition order.
         self.columns: list[int] = [0] * (rows * cols + len(letters))
         self.covers: list[int] = []  # each row's columns, as a bitset over columns
         sides: dict[tuple[int, int, str, Tab], int] = {}  # rows with that tab on that cell side
         for i, cover_row in enumerate(self.rows):
+            # The columns row i marks: the cells it covers and its piece.
             marked = [r * cols + c for r, c in cover_row.cells] + [letters[cover_row.letter]]
             for k in marked:
-                self.columns[k] |= 1 << i
+                self.columns[k] |= 1 << i  # add row i to each column it marks
             self.covers.append(sum(1 << k for k in marked))
+            # Record row i under every (cell, side, tab) it has, for the tab clashes in pass 3.
             for (r, c), bit in zip(cover_row.cells, cover_row.placement, strict=True):
                 for side, _, _ in SIDES:
                     key = (r, c, side, getattr(bit, side))
                     sides[key] = sides.get(key, 0) | 1 << i
+
+        # Pass 3: each row's excludes, worked out once so the search only has to mask them off.
         self.excludes: list[int] = []
         for i, cover_row in enumerate(self.rows):
+            # Rows sharing a column with row i: they overlap a cell or use the same piece.
             mask = 0
             for k in bits(self.covers[i]):
                 mask |= self.columns[k]
+            # Rows clashing on tabs: for each outside side of row i, look up the rows that put
+            # the same tab on the facing side of the neighbouring cell (outey on outey, or
+            # inney on inney).
             for (r, c), bit in zip(cover_row.cells, cover_row.placement, strict=True):
                 for side, dr, dc in SIDES:
                     tab = getattr(bit, side)
