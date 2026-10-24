@@ -129,6 +129,12 @@ class DlxSolver(Solver):
         workers: int | None = None,
     ) -> SolveResult:
         """Find every solution once; `moves` counts rows chosen. `workers` is ignored (B-0005)."""
+        # Every set is one Python int: bit i is set when row i (or column i) is in the set.
+        # - columns[k]   the rows that cover column k
+        # - covers[i]    the columns that row i covers
+        # - excludes[i]  the rows that can't go with row i: every row sharing a column with it
+        #                (itself too), plus the rows that clash with it on tabs
+        # - alive        the rows still possible; open_columns the columns still to cover
         table = self.table
         columns, covers, excludes = table.columns, table.covers, table.excludes
         starts = self.start_order(start_pieces)
@@ -136,6 +142,8 @@ class DlxSolver(Solver):
             for piece in starts:
                 on_start(piece.letter)
         allowed = {piece.letter for piece in starts}
+        # Start with every row alive, then drop the rows that put a piece not in `starts` on the
+        # top-left cell (0, 0), so only the chosen start pieces can begin a solution.
         alive = (1 << len(table.rows)) - 1
         for i in bits(columns[0]):  # the rows covering (0, 0)
             if table.rows[i].letter not in allowed:
@@ -146,23 +154,31 @@ class DlxSolver(Solver):
 
         def search(alive: int, open_columns: int) -> None:
             nonlocal moves
+            # Every cell is filled and every piece used: the chosen rows are a solution.
             if not open_columns:
                 found.append((tuple(chosen), moves))
                 return
+            # Find the open column with the fewest rows left: the hardest cell or piece to place.
             best, fewest = -1, 0
             for k in bits(open_columns):
+                # Calculate rows left in column k:
                 count = (columns[k] & alive).bit_count()
                 if best < 0 or count < fewest:
                     best, fewest = k, count
-                    if count == 0:
+                    if count == 0:  # nothing can cover it: dead end, back up
                         return
+            # Try each row that covers that column, in turn.
             for i in bits(columns[best] & alive):
+                # Choosing row i as the next: drop every row it excludes, close the columns it
+                # covers, search on, then undo the choice and try the next row.
                 moves += 1
                 chosen.append(i)
                 search(alive & ~excludes[i], open_columns & ~covers[i])
                 chosen.pop()
 
-        search(alive, (1 << len(columns)) - 1)
+        search(alive, (1 << len(columns)) - 1)  # all columns start open
+        # The search finds solutions in its own order; sort them into the order the depth-first
+        # search would find them, so the numbering matches `Solver`.
         found.sort(key=lambda item: self._dfs_path(item[0]))
         solutions = tuple(self._found(rows, at) for rows, at in found)
         if on_solution:
