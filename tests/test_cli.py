@@ -113,7 +113,7 @@ def test_prints_found_lines_key_once_and_numbered_solutions(
     first = FoundSolution(Solution(("EEEHJJJJ",)), "E", 10)
     second = FoundSolution(Solution(("AKKKKNNF",)), "A", 20)
     stub_solutions(monkeypatch, (first, second))
-    main(["golfing_madness"])
+    main(["golfing_madness", "--method", "search"])
     out = capsys.readouterr().out
     lines = [
         "Solution 1 found starting with piece E at move 10",
@@ -137,7 +137,7 @@ def test_prints_only_no_solutions_line(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     stub_solutions(monkeypatch, ())
-    main(["golfing_madness"])
+    main(["golfing_madness", "--method", "search"])
     out = capsys.readouterr().out
     assert "Key:" not in out
     assert re.search(r"No solutions found in 99 moves, \d+\.\d s \(\d+ workers?\)\.\n$", out)
@@ -145,7 +145,8 @@ def test_prints_only_no_solutions_line(
 
 @pytest.mark.spec("SPEC-0009", "AT-0004")
 @pytest.mark.parametrize(
-    ("argv", "method"), [([], "fastsearch"), (["--method", "search"], "search")]
+    ("argv", "method"),
+    [([], "dlx"), (["--method", "fastsearch"], "fastsearch"), (["--method", "search"], "search")],
 )
 def test_cli_passes_method(monkeypatch: pytest.MonkeyPatch, argv: list[str], method: str) -> None:
     seen: list[object] = []

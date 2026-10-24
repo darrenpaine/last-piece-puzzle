@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from last_piece_puzzle import METHODS, main, parallel, solver
+from last_piece_puzzle import main, parallel, solver
 from last_piece_puzzle.board import Board
 from last_piece_puzzle.engine import FastSolver
 from last_piece_puzzle.pieces import Bit, Border, Piece, Tab
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
 from last_piece_puzzle.solution import load_solution
-from last_piece_puzzle.solver import FoundSolution, Method, Solver, SolveResult
+from last_piece_puzzle.solver import SEARCH_METHODS, FoundSolution, Method, Solver, SolveResult
 
 IN, OUT, NONE = Tab.IN, Tab.OUT, Tab.NONE
 GRIDS = [
@@ -61,7 +61,7 @@ def solve_with_calls(puzzle: Puzzle, **options: object) -> tuple[SolveResult, Ca
 @pytest.mark.spec("SPEC-0008", "AT-0001")
 @pytest.mark.parametrize("all_rotations", [False, True])
 @pytest.mark.parametrize("key", sorted(SMALL_PUZZLES))
-@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("method", SEARCH_METHODS)
 def test_small_puzzles_match_single_process(key: str, all_rotations: bool, method: Method) -> None:
     puzzle = SMALL_PUZZLES[key]
     expected = solve_with_calls(puzzle, all_rotations=all_rotations, method=method)
@@ -97,7 +97,7 @@ def test_split_tasks_merge_to_single_process_result(solver_class: type[Solver]) 
 
 
 @pytest.mark.spec("SPEC-0008", "AT-0003")
-@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("method", SEARCH_METHODS)
 def test_start_e_with_two_workers(method: Method) -> None:
     result = solver.solve(PUZZLE, start_pieces=["E"], workers=2, method=method)
     assert [found.solution.grid for found in result.solutions] == GRIDS[:2]
@@ -107,7 +107,7 @@ def test_start_e_with_two_workers(method: Method) -> None:
 
 @pytest.mark.spec("SPEC-0008", "AT-0004")
 @pytest.mark.slow
-@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("method", SEARCH_METHODS)
 def test_full_solve_with_workers_matches_step_6(method: Method) -> None:
     result = solver.solve(PUZZLE, workers=4, method=method)
     assert [found.solution.grid for found in result.solutions] == GRIDS
@@ -160,7 +160,7 @@ def test_cli_passes_workers(
 
     monkeypatch.setattr(solver, "solve", fake_solve)
     monkeypatch.setattr(os, "process_cpu_count", lambda: 7)
-    main(["golfing_madness", *argv])
+    main(["golfing_madness", "--method", "search", *argv])
     assert seen == [workers]
     assert capsys.readouterr().out.rstrip().endswith(f"{shown}.")
 

@@ -14,3 +14,4 @@ Status: Draft → Reviewed → Done.
 | SPEC-0007 | Find all solutions        | 6         | Done   |
 | SPEC-0008 | Parallel search           | 7         | Done   |
 | SPEC-0009 | Fast search engine        | 8         | Done   |
+| SPEC-0010 | DLX exact cover algorithm | 9         | Done   |

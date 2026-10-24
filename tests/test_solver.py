@@ -1,12 +1,12 @@
 import pytest
 
-from last_piece_puzzle import METHODS, solver
+from last_piece_puzzle import solver
 from last_piece_puzzle.board import Board
 from last_piece_puzzle.pieces import Bit, Border, Piece, Tab
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
 from last_piece_puzzle.solution import Solution
-from last_piece_puzzle.solver import FoundSolution, Method, SolveResult
+from last_piece_puzzle.solver import SEARCH_METHODS, FoundSolution, Method, SolveResult
 
 IN, OUT, NONE = Tab.IN, Tab.OUT, Tab.NONE
 ALL_BITS = [bit for piece in PUZZLE.pieces for bit in piece.bits]
@@ -95,7 +95,7 @@ def test_fits_checks_neighbour_tab(east: Tab, expected: bool) -> None:
 @pytest.mark.spec("SPEC-0007", "B-0003")
 @pytest.mark.parametrize(("tab", "solved"), [(OUT, True), (IN, False)])
 @pytest.mark.parametrize(("all_rotations", "moves"), [(False, 2), (True, 8)])
-@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("method", SEARCH_METHODS)
 def test_solve_one_cell_board(
     tab: Tab, solved: bool, all_rotations: bool, moves: int, method: Method
 ) -> None:
@@ -119,7 +119,7 @@ ALL_OUT = Bit(0, 0, OUT, OUT, OUT, OUT)
 @pytest.mark.spec("SPEC-0003", "B-0005")
 @pytest.mark.spec("SPEC-0007", "B-0003")
 @pytest.mark.parametrize(("all_rotations", "moves"), [(False, 4), (True, 16)])
-@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("method", SEARCH_METHODS)
 def test_solve_backtracks_and_counts_moves(all_rotations: bool, moves: int, method: Method) -> None:
     # Two all-OUT bits clash with each other, so every start fails: per start piece,
     # each rotation tried costs a place and a remove.
@@ -132,7 +132,7 @@ def test_solve_backtracks_and_counts_moves(all_rotations: bool, moves: int, meth
 
 @pytest.mark.spec("SPEC-0003", "B-0005")
 @pytest.mark.spec("SPEC-0007", "B-0001")
-@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("method", SEARCH_METHODS)
 def test_solve_tries_pieces_in_reverse_and_carries_on(method: Method) -> None:
     # B is tried first and only fits at (0, 0) after 3 rotations (east tab IN); A then fits.
     # The search carries on: starting with A, B fits on its right without turning.

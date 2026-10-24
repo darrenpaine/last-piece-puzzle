@@ -65,6 +65,12 @@ Done when: it works and is shown to be faster than the step 6 baseline.
    with extra tab checks. Try a GPU only if these are not enough.
 Spec: SPEC-0009.
 
-9. Investigate generating a puzzle definition for another puzzle in the series from a photo. AI would
+9. (Done) Add a DLX exact cover solver and make it the CLI default (`--method dlx`). The depth-first
+   searches stay as `--method fastsearch` and `--method search`, with their exact move counts and the
+   C++ comparison.
+Spec: SPEC-0010.
+Done when: DLX finds the same 5 solutions in the same order, in well under a second.
+
+10. Investigate generating a puzzle definition for another puzzle in the series from a photo. AI would
    identify the edges and pieces, and name each piece from the picture on it. This needs approval
    for new dependencies and for an LLM or vision service. Tests use a fake model, with no real calls.
