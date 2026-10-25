@@ -11,6 +11,7 @@ dependencies = []
 
 [project.scripts]
 last-piece-puzzle = "last_piece_puzzle:main"
+last-piece-scan = "last_piece_puzzle.scan:main"
 
 [project.optional-dependencies]
 scan = [
