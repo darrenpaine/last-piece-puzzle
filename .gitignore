@@ -15,3 +15,9 @@ htmlcov/
 
 # Editor settings
 .vscode/
+
+# Scan photos (sheets in scans/ are committed)
+scans/**/*.[jJ][pP][gG]
+scans/**/*.[jJ][pP][eE][gG]
+scans/**/*.[pP][nN][gG]
+scans/**/*.[hH][eE][iI][cC]

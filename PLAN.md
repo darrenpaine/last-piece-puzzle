@@ -71,6 +71,12 @@ Spec: SPEC-0009.
 Spec: SPEC-0010.
 Done when: DLX finds the same 5 solutions in the same order, in well under a second.
 
-10. Investigate generating a puzzle definition for another puzzle in the series from a photo. AI would
+10. (Done) Investigate generating a puzzle definition for another puzzle in the series from a photo. AI would
    identify the edges and pieces, and name each piece from the picture on it. This needs approval
    for new dependencies and for an LLM or vision service. Tests use a fake model, with no real calls.
+   - A vision model writes a hand-fixable sheet from a photo of the solved puzzle (or of loose pieces);
+     code checks it (touching tabs differ, tab balance, DLX solve) and
+     writes the puzzle module.
+Spec: SPEC-0011.
+Done when: a fake-model run writes a loadable Golfing Madness module, and a manual trial on the real
+photo of the solved Golfing Madness is recorded.

@@ -1,0 +1,31 @@
+# Tabs: I inney, O outey, - none (faces the same piece); order north, west, south, east.
+name: Golfing Madness
+piece A: Golfer in red pants lying, club down the left
+piece B: Golfer in yellow shirt and red shorts lying
+piece C: Golfer in yellow pants and orange shirt lying, plus upside-down golfer in purple and yellow
+piece D: Checkered flag and bald golfer in red shirt and plaid pants
+piece E: Golfer in yellow shirt and blue pants swinging (diagonal), ball and club
+piece F: Standing golfer in blue shirt and red pants
+piece G: Upside-down golfer in red-white striped shirt and blue pants
+piece H: Diving golfer in red plaid pants plus crouching golfer in magenta shirt
+piece I: Standing golfer in yellow shirt and checked pants on a red golf bag
+piece J: Crouching golfer in orange striped shirt
+piece K: Golfer in yellow shirt and blue pants putting, golf balls
+piece L: Golfer in light blue lying on his back
+piece M: Golfer in light blue pants lying, bottom left
+piece N: Golfer in pink pants falling plus crouching golfer in yellow shirt
+piece O: Golfer in purple pants lying, bottom right
+
+row: A:OO-- A:I-I- A:O-OO B:II-I C:OOO- C:I-I- C:O-O- C:I--I
+row: A:-III B:OO-- B:I-I- B:--OO D:II-I E:OOO- E:I--I C:-OOO
+row: F:OO-O B:-III D:OOO- D:I-I- D:--O- D:I-II E:-OO- E:I--I
+row: F:-I-- F:O-OO G:II-- G:O-OO H:II-- H:O-O- H:I-II E:-OOO
+row: F:-OOO G:III- G:--OO H:III- H:--OO I:II-- I:O-OO J:II-I
+row: K:III- K:O--O L:III- L:O-O- L:I-II I:-O-O J:III- J:--OO
+row: M:OO-O K:-III N:OOO- N:I--I I:OOO- I:--II O:OO-- O:I--I
+row: M:-II- M:O-O- M:I-II N:-OO- N:I-I- N:O-OO O:-IO- O:--IO
+
+top:    IOIOIOIO
+left:   IOIOIOIO
+right:  OIOIOIOI
+bottom: OIOIOIIO

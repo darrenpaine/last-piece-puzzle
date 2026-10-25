@@ -3,7 +3,7 @@ from collections.abc import Callable, Iterator
 
 import pytest
 
-from last_piece_puzzle import main, solver
+from last_piece_puzzle import main, puzzles, solver
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.solution import Solution
 from last_piece_puzzle.solver import FoundSolution, SolveResult
@@ -67,7 +67,7 @@ def test_menu_number_solves(
     main([])
     out = capsys.readouterr().out
     assert "1. Golfing Madness (golfing_madness)" in out
-    assert "Choose a puzzle (1-1, q to quit): " in out
+    assert f"Choose a puzzle (1-{len(puzzles.available())}, q to quit): " in out
     assert solved == ["Golfing Madness"]
 
 

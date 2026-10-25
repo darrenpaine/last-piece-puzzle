@@ -1,0 +1,99 @@
+# Tabs: I inney, O outey, - none (faces the same piece); order north, west, south, east.
+name: Puzzling Pets
+
+top:    IOIOIOIO
+left:   IOIOIOIO
+right:  OIOIOIOI
+bottom: OIOIOIII
+
+piece A: Grey dog, beach ball and upside-down beagle
+  0,0 OOO-
+  0,1 I-I-
+  0,2 O-O-
+  0,3 I--I
+  1,3 -OOO
+
+piece B: Brown spotted dog and white terrier
+  0,0 OO--
+  0,1 I-I-
+  0,2 O-O-
+  0,3 I-II
+  1,0 -III
+
+piece C: Bull terrier and ginger tabby cat
+  0,0 III-
+  0,1 O--O
+  1,1 -I-I
+  2,1 -OO-
+  2,2 I-II
+
+piece D: Tiger-striped cat and lilac kitten
+  0,0 II-I
+  1,0 -OO-
+  1,1 I--I
+  2,1 -OOO
+
+piece E: Cat with a red tail and red-and-white cat on its back
+  0,0 II--
+  0,1 O-OO
+  1,0 -O-O
+  2,-1 OOO-
+  2,0 --II
+
+piece F: Bones and red-and-white dog
+  0,0 OO-O
+  1,0 -I-I
+  2,0 -O--
+  2,1 I-II
+  3,0 -III
+
+piece G: Siamese cat stretching
+  0,0 II-I
+  1,0 -O-O
+  2,-1 OOO-
+  2,0 --II
+
+piece H: Grey hound lying down
+  0,0 II-I
+  1,-1 III-
+  1,0 --O-
+  1,1 I-II
+
+piece I: Brown tabby cat reaching up and red dog lying down
+  0,0 OO-O
+  1,-1 OO--
+  1,0 --II
+  2,-2 OOO-
+  2,-1 --II
+
+piece J: Ginger cat and black cat leaping
+  0,0 OOO-
+  0,1 I-I-
+  0,2 O--O
+  1,2 -II-
+  1,3 O-OO
+
+piece K: Beach ball, striped ginger cat and shih tzu
+  0,0 III-
+  0,1 O--O
+  1,1 -I-I
+  2,1 -OOO
+
+piece L: White cat with a collar and dachshund
+  0,0 OO--
+  0,1 I-II
+  1,-2 III-
+  1,-1 O-O-
+  1,0 --II
+
+piece M: Barking dog and black dog
+  0,0 OO-O
+  1,-1 OOO-
+  1,0 --I-
+  1,1 O-O-
+  1,2 I-II
+
+piece N: Grey spotted cat (the last piece)
+  0,0 OO-O
+  1,-1 OOO-
+  1,0 --IO
