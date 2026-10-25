@@ -632,7 +632,7 @@ def bad_unsolved_sheets() -> list[tuple[str, str]]:
             scan.format_solved_sheet(with_tab(board, 6, 5, 3, Tab.NONE)),
             "cell (6, 5) D east: - faces the gap",
         ),
-        (without_border(text), "right: needed, because cell (7, 7) is in the gap"),
+        (without_border(text), "no top line: an unsolved sheet needs the whole frame"),
         (text.replace(cell_lines[-1], "", 1), "the loose pieces have 2 cells, the gap has 3"),
         (
             "".join(line for line in text.splitlines(keepends=True) if line not in cell_lines),
@@ -833,3 +833,51 @@ def test_cli_picks_the_model(
     monkeypatch.setattr(scan, patched, RecordingModel)
     scan.main(["test_key", "photo.jpg", *options], puzzles_dir=workdir / "puzzles")
     assert RecordingModel.built == [built]
+
+
+# Puzzling Pets as sold: one pair of inneys touches, between an edge piece and the frame
+
+PETS = ROOT / "scans" / "puzzling_pets" / "sheet_claude.txt"
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0014")
+def test_puzzling_pets_sheet(workdir: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    board = scan.parse_solved_sheet(PETS.read_text())
+    assert scan.touching_inneys(board) == ["bottom tab 6 and cell (7, 6) M south"]
+    run(["pets", "--sheet", str(PETS)], NoModel(), workdir)
+    out = capsys.readouterr().out
+    assert "5 solutions found." in out
+    assert "bottom tab 6 is I" in out and "piece N cell 1,0 east is O" in out
+    assert "Inneys that touch as sold: bottom tab 6 and cell (7, 6) M south" in out
+    assert "Warning" not in out
+    assert len(grids(load_module(workdir / "puzzles" / "pets_puzzle.py").PUZZLE)) == 5
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0014")
+def test_unsolved_sheet_still_rejects_touching_outeys() -> None:
+    text = PETS.read_text().replace("bottom: OIOIOIII", "bottom: OIOIOIOI")
+    assert scan.parse_solved_sheet(text)  # the frame's outey meets the cell's inney: fine
+    clash = PETS.read_text().replace("M:I-II K:-OOO", "M:I-OI K:-OOO")  # (7, 6) south O
+    message = "bottom tab 6 is O and cell (7, 6) M south is O: touching tabs must differ"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        scan.parse_solved_sheet(clash.replace("bottom: OIOIOIII", "bottom: OIOIOIOI"))
+    with pytest.raises(ValueError, match="no top line"):
+        scan.parse_solved_sheet(without_border(PETS.read_text()))
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0014")
+def test_inneys_inside_the_board_are_allowed_but_warned(
+    workdir: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    board = unsolved_board()  # fixture 1 has no touching inneys at all
+    assert scan.touching_inneys(board) == []
+    sheet = workdir / "sheet.txt"
+    sheet.write_text(scan.format_solved_sheet(board))
+    run(["golf", "--sheet", str(sheet)], NoModel(), workdir)
+    out = capsys.readouterr().out
+    assert "Inneys that touch as sold: none" in out
+    assert "Warning: as sold, these puzzles have exactly one pair of touching inneys" in out
+    inside = with_tab(board, 0, 2, 3, Tab.IN)  # E's east inney now meets H's west inney
+    assert scan.touching_inneys(scan.parse_solved_sheet(scan.format_solved_sheet(inside))) == [
+        "cell (0, 2) E east and cell (0, 3) H west"
+    ]

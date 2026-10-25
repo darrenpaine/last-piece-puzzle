@@ -338,8 +338,9 @@ def parse_solved_sheet(text: str) -> SolvedBoard:
     cells = tuple(rows)
     loose = tuple(Piece(letter, names[letter], tuple(bits)) for letter, bits in loose_bits.items())
     _check_letters(cells, names, loose)
-    _check_edges(cells)
-    return SolvedBoard(name, names, cells, _border(cells, given), loose)
+    unsolved = bool(loose)  # _check_letters makes sure a gap and loose pieces come together
+    _check_edges(cells, unsolved)
+    return SolvedBoard(name, names, cells, _border(cells, given, unsolved), loose)
 
 
 def _board_cell(token: str, where: str) -> BoardCell:
@@ -377,9 +378,9 @@ def _check_letters(cells: Cells, names: Mapping[str, str], loose: Sequence[Piece
             raise ValueError(f"piece {letter} covers no cells")
 
 
-def _check_edges(cells: Cells) -> None:
+def _check_edges(cells: Cells, unsolved: bool = False) -> None:
     """`-` faces the same piece; a tab faces another piece, the gap or the frame; touching tabs
-    differ."""
+    differ, except that two inneys may touch in a layout as sold (B-0016)."""
     rows, cols = len(cells), len(cells[0])
     for r, row in enumerate(cells):
         for c, cell in enumerate(row):
@@ -405,7 +406,7 @@ def _check_edges(cells: Cells) -> None:
                         )
                 elif tab is Tab.NONE:
                     raise ValueError(f"{where}: - faces piece {other}, expected I or O")
-                elif other_tabs[(k + 2) % 4] is tab:
+                elif other_tabs[(k + 2) % 4] is tab and not (unsolved and tab is Tab.IN):
                     facing = CELL_SIDES[(k + 2) % 4][0]
                     raise ValueError(
                         f"{where} is {TAB_CHARS[tab]} and cell ({nr}, {nc}) {other} {facing}"
@@ -413,9 +414,12 @@ def _check_edges(cells: Cells) -> None:
                     )
 
 
-def _border(cells: Cells, given: Mapping[str, tuple[Tab, ...]]) -> Border:
-    """The frame is opposite each edge cell's outer tab; given border lines must agree, and are
-    needed where a gap cell touches the frame (B-0009)."""
+def _border(cells: Cells, given: Mapping[str, tuple[Tab, ...]], unsolved: bool = False) -> Border:
+    """The frame is opposite each edge cell's outer tab; given border lines must agree. An unsolved
+    sheet gives the whole frame, which may have an inney against an edge cell's inney (B-0017)."""
+    missing = [side for side in BORDER_SIDES if side not in given]
+    if unsolved and missing:
+        raise ValueError(f"no {missing[0]} line: an unsolved sheet needs the whole frame")
     edges = {
         "top": [(0, c, 0) for c in range(len(cells[0]))],
         "left": [(r, 0, 1) for r in range(len(cells))],
@@ -438,12 +442,12 @@ def _border(cells: Cells, given: Mapping[str, tuple[Tab, ...]]) -> Border:
                 tabs.append(frame)
                 continue
             outer = cell[1][k]
-            if frame is outer:
+            if frame is outer and not (unsolved and outer is Tab.IN):
                 raise ValueError(
                     f"{side} tab {i} is {TAB_CHARS[outer]} and cell ({r}, {c}) {cell[0]}"
                     f" {CELL_SIDES[k][0]} is {TAB_CHARS[outer]}: touching tabs must differ"
                 )
-            tabs.append(Tab.IN if outer is Tab.OUT else Tab.OUT)
+            tabs.append(frame or (Tab.IN if outer is Tab.OUT else Tab.OUT))
         border[side] = tuple(tabs)
     return Border(**border)
 
@@ -455,7 +459,7 @@ def pattern_breaks(puzzle: Puzzle, board: SolvedBoard | None = None) -> list[str
     """Tabbed sides that break the checkerboard, where each cell is all outeys or all inneys and
     neighbouring cells differ (B-0012).
 
-    Board cells are checked against one pattern for the whole board, and frame tabs at the gap
+    Board cells are checked against one pattern for the whole board, and an unsolved sheet's frame
     against the same pattern. Pieces not on a board (a piece sheet, or loose pieces) are each
     checked against their own best pattern, and a piece sheet's frame against its own.
     """
@@ -479,10 +483,12 @@ def pattern_breaks(puzzle: Puzzle, board: SolvedBoard | None = None) -> list[str
         ]
         frame = _frame_sides(puzzle.border, len(board.cells), len(board.cells[0]))
         gaps = set(board.gaps)
+        # A solved board's frame is opposite its cells, so it breaks where they do; an unsolved
+        # sheet's frame is read on its own (B-0017), so check all of it.
         breaks += [
-            f"{side} tab {i} (at the gap) is {TAB_CHARS[tab]}"
+            f"{side} tab {i}{' (at the gap)' if (r, c) in gaps else ''} is {TAB_CHARS[tab]}"
             for side, i, (r, c), tab in frame
-            if (r, c) in gaps and tab is _expected(r + c, phase)  # the frame is opposite its cell
+            if board.loose and tab is _expected(r + c, phase)
         ]
     else:
         frame = _frame_sides(puzzle.border, puzzle.rows, puzzle.cols)
@@ -535,6 +541,30 @@ def _frame_sides(
         for side in BORDER_SIDES
         for i, (cell, tab) in enumerate(zip(cells[side], getattr(border, side), strict=True))
     ]
+
+
+def touching_inneys(board: SolvedBoard) -> list[str]:
+    """Where two inneys touch in the photographed layout: between cells, or a cell and the frame."""
+    cells = board.cells
+    rows, cols = len(cells), len(cells[0])
+    pairs: list[str] = []
+    for side, i, (r, c), frame in _frame_sides(board.border, rows, cols):
+        cell = cells[r][c]
+        k = {"top": 0, "left": 1, "bottom": 2, "right": 3}[side]
+        if cell and frame is Tab.IN and cell[1][k] is Tab.IN:
+            pairs.append(f"{side} tab {i} and cell ({r}, {c}) {cell[0]} {CELL_SIDES[k][0]}")
+    for r, row in enumerate(cells):
+        for c, cell in enumerate(row):
+            for k in (2, 3):  # south and east, so each edge once
+                side, dr, dc = CELL_SIDES[k]
+                nr, nc = r + dr, c + dc
+                other = cells[nr][nc] if nr < rows and nc < cols else None
+                if cell and other and cell[1][k] is Tab.IN and other[1][k - 2] is Tab.IN:
+                    pairs.append(
+                        f"cell ({r}, {c}) {cell[0]} {side} and cell ({nr}, {nc}) {other[0]}"
+                        f" {CELL_SIDES[k - 2][0]}"
+                    )
+    return pairs
 
 
 # The puzzle module
@@ -704,7 +734,9 @@ cell by cell, row by row from the top, left to right. For each cell give the let
 covering it and its four tabs as it lies on the board. For a gap cell give the letter "." and "-"
 for its four tabs. A side facing the gap still has its tab ("I" or "O"). Where two pieces touch,
 one cell has "O" and the other "I" on the shared side. Inside a piece, the shared sides are "-".
-Give the frame's tabs all the way round, along the gap too.
+Read the frame's own tabs all the way round; don't work them out from the pieces. As sold, two
+outeys never touch, but two inneys can: these puzzles come with one place where an inney on an
+edge piece sits against an inney on the frame.
 
 List the pieces on the board under "pieces". List the last piece only under "loose", with its
 {CELLS_AS_OFFSETS}
@@ -973,6 +1005,14 @@ def main(
         print(f"Tabs that break the checkerboard ({len(breaks)}); check them in the photo:")
         for line in breaks:
             print(f"  {line}")
+    if board is not None and board.loose:
+        pairs = touching_inneys(board)
+        print("Inneys that touch as sold: " + ("; ".join(pairs) or "none"))
+        if len(pairs) != 1 or not pairs[0].startswith(BORDER_SIDES):
+            print(
+                "Warning: as sold, these puzzles have exactly one pair of touching inneys, on the"
+                " frame. Check those tabs, and the frame."
+            )
     if len(found) > MANY_SOLUTIONS:
         print(
             f"Warning: {len(found)} solutions, but the puzzles in this series have only a few."

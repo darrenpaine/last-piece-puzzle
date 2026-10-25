@@ -1,0 +1,38 @@
+# Tabs: I inney, O outey, - none (faces the same piece); order north, west, south, east.
+# Read by Claude Code from puzzling_pets.jpg (upright), with enlarged crops and a grid overlay.
+# Least sure: cell (6, 4) east, (6, 6) east, (7, 0) west and (7, 6) south (grooves faint, tab
+# taken from the checkerboard); no cut found under (5, 1) and (6, 2), so those pieces join below.
+# Frame from Darren (the same as Golfing Madness). As sold, cell (7, 6) south is an inney next
+# to the frame's inney at bottom tab 6. With this frame the puzzle has 5 solutions.
+name: Puzzling Pets
+piece A: Grey dog, beach ball and upside-down beagle
+piece B: Brown spotted dog and white terrier
+piece C: Bull terrier and ginger tabby cat
+piece D: Tiger-striped cat and lilac kitten
+piece E: Cat with a red tail and red-and-white cat on its back
+piece F: Bones and red-and-white dog
+piece G: Siamese cat stretching
+piece H: Grey hound lying down
+piece I: Brown tabby cat reaching up and red dog lying down
+piece J: Ginger cat and black cat leaping
+piece K: Beach ball, striped ginger cat and shih tzu
+piece L: White cat with a collar and dachshund
+piece M: Barking dog and black dog
+piece N: Grey spotted cat (the last piece)
+  0,0 OO-O
+  1,-1 OOO-
+  1,0 --IO
+
+row: A:OOO- A:I-I- A:O-O- A:I--I B:OO-- B:I-I- B:O-O- B:I-II
+row: C:III- C:O--O D:II-I A:-OOO B:-III . E:II-- E:O-OO
+row: F:OO-O C:-I-I D:-OO- D:I--I . . E:-O-O G:II-I
+row: F:-I-I C:-OO- C:I-II D:-OOO H:II-I E:OOO- E:--II G:-O-O
+row: F:-O-- F:I-II I:OO-O H:III- H:--O- H:I-II G:OOO- G:--II
+row: F:-III I:OO-- I:--II J:OOO- J:I-I- J:O--O K:III- K:O--O
+row: I:OOO- I:--II L:OO-- L:I-II M:OO-O J:-II- J:O-OO K:-I-I
+row: L:III- L:O-O- L:--II M:OOO- M:--I- M:O-O- M:I-II K:-OOO
+
+top:    IOIOIOIO
+left:   IOIOIOIO
+right:  OIOIOIOI
+bottom: OIOIOIII
