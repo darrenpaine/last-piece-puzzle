@@ -11,7 +11,9 @@ from types import ModuleType, SimpleNamespace
 from typing import cast
 
 import anthropic
+import httpx2
 import pytest
+from google import genai
 from test_parallel import SMALL_PUZZLES
 
 from last_piece_puzzle import scan, solver
@@ -46,10 +48,18 @@ def solved_board(grid: Sequence[str] = GRIDS[0]) -> SolvedBoard:
     return SolvedBoard(PUZZLE.name, names, tuple(cells), PUZZLE.border)
 
 
+def tabs_at(board: SolvedBoard, row: int, col: int) -> scan.Tabs:
+    cell = board.cells[row][col]
+    assert cell is not None
+    return cell[1]
+
+
 def with_tab(board: SolvedBoard, row: int, col: int, side: int, tab: Tab) -> SolvedBoard:
     """The board with one side of one cell changed."""
     cells = [list(line) for line in board.cells]
-    letter, tabs = cells[row][col]
+    cell = cells[row][col]
+    assert cell is not None
+    letter, tabs = cell
     new = list(tabs)
     new[side] = tab
     cells[row][col] = (letter, (new[0], new[1], new[2], new[3]))
@@ -104,8 +114,8 @@ def bad_solved_sheets() -> list[tuple[str, str]]:
     short_tabs = text.replace("row: E:", "row: E:II ", 1)
     no_piece_line = "".join(line for line in lines if not line.startswith("piece N:"))
     top = "".join("O" if t is Tab.OUT else "I" for t in PUZZLE.border.top)
-    same_as_cell = "I" if board.cells[0][0][1][0] is Tab.IN else "O"
-    east_of_e = board.cells[0][2][1][3]
+    same_as_cell = scan.TAB_CHARS[tabs_at(board, 0, 0)[0]]
+    east_of_e = tabs_at(board, 0, 2)[3]
     return [
         (text.replace("name:", "nonsense\nname:"), "line 2: cannot read 'nonsense'"),
         ("".join(short_row), f"line {row_line + 2}: row has 7 cells, the first row has 8"),
@@ -151,8 +161,8 @@ def test_bad_solved_sheet_names_the_fault(text: str, message: str) -> None:
 def test_one_flipped_inside_tab_is_found_at_its_pair_of_cells() -> None:
     board = solved_board()
     for r, row in enumerate(board.cells):
-        for c, (_, tabs) in enumerate(row):
-            for k, tab in enumerate(tabs):
+        for c in range(len(row)):
+            for k, tab in enumerate(tabs_at(board, r, c)):
                 if tab is Tab.NONE:
                     continue
                 dr, dc = scan.CELL_SIDES[k][1:]
@@ -298,7 +308,7 @@ def test_pieces_option_asks_for_a_piece_sheet(workdir: Path) -> None:
 
 def failing_sheets() -> list[tuple[str, list[str], str]]:
     board = solved_board()
-    clash = scan.format_solved_sheet(with_tab(board, 0, 2, 3, FLIP[board.cells[0][2][1][3]]))
+    clash = scan.format_solved_sheet(with_tab(board, 0, 2, 3, FLIP[tabs_at(board, 0, 2)[3]]))
     flipped = scan.format_piece_sheet(flipped_piece_tabs()[0])
     # Two flips that cancel out: the tabs balance, but nothing fits.
     a, b = PUZZLE.pieces[0], PUZZLE.pieces[1]  # A's first bit has north I, B's north O
@@ -382,7 +392,14 @@ def test_module_passes_mypy(tmp_path: Path) -> None:
 
 
 class StubClient:
-    def __init__(self, stop_reason: str, text: str, category: str | None = None) -> None:
+    def __init__(
+        self,
+        stop_reason: str,
+        text: str,
+        category: str | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        self.error = error
         details = SimpleNamespace(category=category) if category else None
         blocks = [
             SimpleNamespace(type="thinking", thinking=""),
@@ -396,6 +413,8 @@ class StubClient:
 
     def stream(self, **request: object) -> StubClient:
         self.requests.append(request)
+        if self.error:
+            raise self.error
         return self
 
     def __enter__(self) -> StubClient:
@@ -412,55 +431,56 @@ def model_with(client: StubClient) -> scan.ClaudeVisionModel:
     return scan.ClaudeVisionModel(cast(anthropic.Anthropic, client))
 
 
-def solved_json(board: SolvedBoard) -> str:
+def board_json(board: SolvedBoard) -> str:
+    """A model's JSON answer for a solved board, or an unsolved one (gaps and loose pieces)."""
     chars = scan.TAB_CHARS
     sides = [side for side, _, _ in scan.CELL_SIDES]
-    return json.dumps(
-        {
-            "name": board.name,
-            "pieces": [{"letter": k, "name": v} for k, v in board.names.items()],
-            "rows": [
-                [
-                    {"letter": letter, **{s: chars[t] for s, t in zip(sides, tabs, strict=True)}}
-                    for letter, tabs in row
-                ]
-                for row in board.cells
-            ],
-            "border": {
-                side: "".join(chars[t] for t in getattr(board.border, side))
-                for side in scan.BORDER_SIDES
-            },
-        }
-    )
+    loose = {piece.letter for piece in board.loose}
+
+    def cell_json(cell: scan.BoardCell) -> dict[str, str]:
+        letter, tabs = cell or (".", (Tab.NONE,) * 4)
+        return {"letter": letter, **{s: chars[t] for s, t in zip(sides, tabs, strict=True)}}
+
+    answer: dict[str, object] = {
+        "name": board.name,
+        "pieces": [{"letter": k, "name": v} for k, v in board.names.items() if k not in loose],
+        "rows": [[cell_json(cell) for cell in row] for row in board.cells],
+        "border": {
+            side: "".join(chars[t] for t in getattr(board.border, side))
+            for side in scan.BORDER_SIDES
+        },
+    }
+    if board.loose:
+        answer["loose"] = [piece_json(piece) for piece in board.loose]
+    return json.dumps(answer)
+
+
+def piece_json(piece: Piece) -> dict[str, object]:
+    chars = scan.TAB_CHARS
+    sides = [side for side, _, _ in scan.CELL_SIDES]
+    return {
+        "letter": piece.letter,
+        "name": piece.name,
+        "cells": [
+            {
+                "row": b.row,
+                "col": b.col,
+                **{s: chars[t] for s, t in zip(sides, scan.bit_tabs(b), strict=True)},
+            }
+            for b in piece.bits
+        ],
+    }
 
 
 def pieces_json(puzzle: Puzzle) -> str:
-    chars = scan.TAB_CHARS
     return json.dumps(
         {
             "name": puzzle.name,
             "border": {
-                side: "".join(chars[t] for t in getattr(puzzle.border, side))
+                side: "".join(scan.TAB_CHARS[t] for t in getattr(puzzle.border, side))
                 for side in scan.BORDER_SIDES
             },
-            "pieces": [
-                {
-                    "letter": piece.letter,
-                    "name": piece.name,
-                    "cells": [
-                        {
-                            "row": b.row,
-                            "col": b.col,
-                            "north": chars[b.north],
-                            "west": chars[b.west],
-                            "south": chars[b.south],
-                            "east": chars[b.east],
-                        }
-                        for b in piece.bits
-                    ],
-                }
-                for piece in puzzle.pieces
-            ],
+            "pieces": [piece_json(piece) for piece in puzzle.pieces],
         }
     )
 
@@ -475,7 +495,7 @@ def photos(tmp_path: Path) -> list[Path]:
 
 @pytest.mark.spec("SPEC-0011", "AT-0008")
 def test_claude_request_and_solved_answer(photos: list[Path]) -> None:
-    client = StubClient("end_turn", solved_json(solved_board()))
+    client = StubClient("end_turn", board_json(solved_board()))
     text = model_with(client).read(photos, SheetKind.SOLVED)
     assert text == scan.format_solved_sheet(solved_board())
     [request] = client.requests
@@ -552,3 +572,264 @@ def test_failed_model_call_writes_nothing(
     assert stopped.value.code == 1
     assert "the model declined (cyber)" in capsys.readouterr().err
     assert not (workdir / "scans").exists()
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0008")
+def test_claude_api_error(photos: list[Path]) -> None:
+    error = anthropic.APIConnectionError(
+        request=httpx2.Request("POST", "https://api.anthropic.com")
+    )
+    with pytest.raises(ValueError, match="Claude API error: Connection error"):
+        model_with(StubClient("end_turn", "", error=error)).read(photos, SheetKind.SOLVED)
+
+
+# Unsolved sheets: the puzzle as sold, with a gap and the last piece outside the board
+
+
+def unsolved_board(letter: str = "B") -> SolvedBoard:
+    """Fixture 1 with one piece taken out: its cells become the gap, and it is listed as loose."""
+    board = solved_board()
+    piece = next(p for p in board.to_puzzle().pieces if p.letter == letter)
+    cells = tuple(
+        tuple(None if cell and cell[0] == letter else cell for cell in row) for row in board.cells
+    )
+    return dataclasses.replace(board, cells=cells, loose=(piece,))
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0009")
+def test_unsolved_sheet_gives_golfing_madness() -> None:
+    text = scan.format_solved_sheet(unsolved_board())
+    assert "piece B: Purple Pants\n  0,0 " in text
+    assert scan.sheet_kind(text) is SheetKind.UNSOLVED
+    board = scan.parse_solved_sheet(text)
+    assert board == unsolved_board()
+    assert board.gaps == [(6, 6), (7, 6), (7, 7)]
+    assert board.grid.grid[7] == "AAAIII.."
+    puzzle = board.to_puzzle()
+    assert [p.letter for p in puzzle.pieces] == [p.letter for p in PUZZLE.pieces]
+    for piece, expected in zip(puzzle.pieces, PUZZLE.pieces, strict=True):
+        assert canonical(piece) == canonical(expected)
+    assert puzzle.border == PUZZLE.border
+    assert scan.tab_balance(puzzle) == 0
+    assert grids(puzzle) == set(GRIDS)
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0009")
+def test_sheet_kinds() -> None:
+    assert scan.sheet_kind(scan.format_solved_sheet(solved_board())) is SheetKind.SOLVED
+    assert scan.sheet_kind(scan.format_piece_sheet(PUZZLE)) is SheetKind.PIECES
+
+
+def bad_unsolved_sheets() -> list[tuple[str, str]]:
+    board = unsolved_board()  # B's cells (6, 6), (7, 6) and (7, 7) are the gap
+    text = scan.format_solved_sheet(board)
+    cell_lines = [line for line in text.splitlines(keepends=True) if line.startswith("  ")]
+    on_board_too = text.replace(
+        "piece E: Redhead red Pants\n", "piece E: Redhead red Pants\n  0,0 OO-O\n"
+    )
+    return [
+        (
+            scan.format_solved_sheet(with_tab(board, 6, 5, 3, Tab.NONE)),
+            "cell (6, 5) D east: - faces the gap",
+        ),
+        (without_border(text), "right: needed, because cell (7, 7) is in the gap"),
+        (text.replace(cell_lines[-1], "", 1), "the loose pieces have 2 cells, the gap has 3"),
+        (
+            "".join(line for line in text.splitlines(keepends=True) if line not in cell_lines),
+            "3 gap cells but no loose piece",
+        ),
+        (on_board_too, "cell (0, 0): piece E is loose but on the board"),
+    ]
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0010")
+@pytest.mark.parametrize(
+    ("text", "message"), [pytest.param(*case, id=case[1]) for case in bad_unsolved_sheets()]
+)
+def test_bad_unsolved_sheet(text: str, message: str) -> None:
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}"):
+        scan.parse_solved_sheet(text)
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0011")
+def test_unsolved_option_writes_module(workdir: Path) -> None:
+    model = FakeModel(scan.format_solved_sheet(unsolved_board()))
+    run(["test_key", "photo.jpg", "--unsolved"], model, workdir)
+    assert model.calls == [([Path("photo.jpg")], SheetKind.UNSOLVED)]
+    assert grids(load_module(workdir / "puzzles" / "test_key_puzzle.py").PUZZLE) == set(GRIDS)
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0011")
+def test_unsolved_sheet_with_a_flipped_loose_tab_stops_at_tab_balance(
+    workdir: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    board = unsolved_board()
+    [piece] = board.loose
+    first = piece.bits[0]
+    k = next(k for k, tab in enumerate(scan.bit_tabs(first)) if tab is not Tab.NONE)
+    tabs = list(scan.bit_tabs(first))
+    tabs[k] = FLIP[tabs[k]]
+    flipped = dataclasses.replace(piece, bits=(Bit(first.row, first.col, *tabs), *piece.bits[1:]))
+    text = scan.format_solved_sheet(dataclasses.replace(board, loose=(flipped,)))
+    with pytest.raises(SystemExit):
+        run(["test_key", "photo.jpg", "--unsolved"], FakeModel(text), workdir)
+    assert "tabs don't balance" in capsys.readouterr().err
+    assert not (workdir / "puzzles" / "test_key_puzzle.py").exists()
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0011")
+def test_pieces_and_unsolved_together_are_refused(workdir: Path) -> None:
+    with pytest.raises(SystemExit) as stopped:
+        run(["test_key", "photo.jpg", "--pieces", "--unsolved"], NoModel(), workdir)
+    assert stopped.value.code == 2
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0011")
+def test_claude_unsolved_answer(photos: list[Path]) -> None:
+    expected = unsolved_board()
+    text = model_with(StubClient("end_turn", board_json(expected))).read(photos, SheetKind.UNSOLVED)
+    board = scan.parse_solved_sheet(text)
+    assert (board.cells, board.loose, board.border) == (
+        expected.cells,
+        expected.loose,
+        expected.border,
+    )
+    assert board.names.items() == expected.names.items()
+
+
+# The checkerboard report and the warning about many solutions
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0012")
+def test_pattern_breaks_in_golfing_madness() -> None:
+    puzzle, board = scan.check_sheet(scan.format_solved_sheet(solved_board()))
+    assert scan.pattern_breaks(puzzle, board) == ["cell (7, 6) B south is O"]
+    assert scan.pattern_breaks(PUZZLE) == ["bottom tab 6 is I", "piece B cell 0,1 east is O"]
+    puzzle, board = scan.check_sheet(scan.format_solved_sheet(unsolved_board()))
+    assert scan.pattern_breaks(puzzle, board) == [
+        "bottom tab 6 (at the gap) is I",
+        "piece B cell 1,0 south is O",  # B as it lay on the board
+    ]
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0012")
+def test_report_and_warning(
+    workdir: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    good = workdir / "good.txt"
+    good.write_text(scan.format_solved_sheet(solved_board()))
+    run(["good", "--sheet", str(good)], NoModel(), workdir)
+    out = capsys.readouterr().out
+    assert "checkerboard (1)" in out and "cell (7, 6) B south is O" in out
+    assert "Warning" not in out
+
+    monkeypatch.setattr(scan, "MANY_SOLUTIONS", 4)
+    run(["good", "--sheet", str(good), "--force"], NoModel(), workdir)
+    assert "Warning: 5 solutions" in capsys.readouterr().out
+
+
+@pytest.mark.slow
+@pytest.mark.spec("SPEC-0011", "AT-0012")
+def test_report_and_warning_for_the_trial_sheet(
+    workdir: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    trial = ROOT / "scans" / "golfing_madness_scan" / "sheet.txt"  # the blind trial's sheet
+    run(["trial", "--sheet", str(trial)], NoModel(), workdir)
+    out = capsys.readouterr().out
+    assert "1614 solutions found." in out
+    assert "cell (7, 6) O south is O" in out and "cell (7, 7) O south is I" in out
+    assert "Warning: 1614 solutions" in out
+
+
+# Gemini, with the SDK client replaced by a stub
+
+
+class StubGemini:
+    def __init__(self, text: str | None = None, error: Exception | None = None) -> None:
+        self.text, self.error = text, error
+        self.requests: list[dict[str, object]] = []
+        self.interactions = SimpleNamespace(create=self.create)
+
+    def create(self, **request: object) -> SimpleNamespace:
+        self.requests.append(request)
+        if self.error:
+            raise self.error
+        return SimpleNamespace(output_text=self.text)
+
+
+def gemini_with(client: StubGemini, model: str = scan.GEMINI_MODEL) -> scan.GeminiVisionModel:
+    return scan.GeminiVisionModel(cast(genai.Client, client), model)
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0013")
+def test_gemini_request_and_answer(photos: list[Path]) -> None:
+    client = StubGemini(board_json(solved_board()))
+    text = gemini_with(client, "gemini-3.8-flash").read(photos, SheetKind.SOLVED)
+    assert text == scan.format_solved_sheet(solved_board())
+    [request] = client.requests
+    assert request["model"] == "gemini-3.8-flash"
+    assert request["response_format"] == {
+        "type": "text",
+        "mime_type": "application/json",
+        "schema": scan.SCHEMAS[SheetKind.SOLVED],
+    }
+    items = cast(list[dict[str, str]], request["input"])
+    assert [item["mime_type"] for item in items[:-1]] == ["image/jpeg", "image/png"]
+    assert all(item["type"] == "image" and item["data"] for item in items[:-1])
+    assert items[-1] == {"type": "text", "text": scan.PROMPTS[SheetKind.SOLVED]}
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0013")
+@pytest.mark.parametrize(
+    ("client", "message"),
+    [
+        (StubGemini(None), "the answer has no text"),
+        (StubGemini("not json"), "the answer is not JSON"),
+        (StubGemini('{"name": 3}'), "the answer's border is not a dict"),
+        (
+            StubGemini(error=genai.errors.APIError(503, {"error": {"status": "UNAVAILABLE"}})),
+            "Gemini API error: 503",
+        ),
+    ],
+)
+def test_gemini_bad_answers(photos: list[Path], client: StubGemini, message: str) -> None:
+    with pytest.raises(ValueError, match=re.escape(message)):
+        gemini_with(client).read(photos, SheetKind.SOLVED)
+
+
+class RecordingModel:
+    """Stands in for a model class, recording how the CLI built it."""
+
+    built: list[dict[str, object]] = []
+
+    def __init__(self, **options: object) -> None:
+        RecordingModel.built.append(options)
+
+    def read(self, photos: Sequence[Path], kind: SheetKind, /) -> str:
+        return scan.format_solved_sheet(solved_board())
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0013")
+@pytest.mark.parametrize(
+    ("options", "patched", "built"),
+    [
+        ([], "ClaudeVisionModel", {}),
+        (["--model", "gemini"], "GeminiVisionModel", {"model": scan.GEMINI_MODEL}),
+        (
+            ["--model", "gemini", "--gemini-model", "gemini-3.8-flash"],
+            "GeminiVisionModel",
+            {"model": "gemini-3.8-flash"},
+        ),
+    ],
+)
+def test_cli_picks_the_model(
+    workdir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options: list[str],
+    patched: str,
+    built: dict[str, object],
+) -> None:
+    RecordingModel.built = []
+    monkeypatch.setattr(scan, patched, RecordingModel)
+    scan.main(["test_key", "photo.jpg", *options], puzzles_dir=workdir / "puzzles")
+    assert RecordingModel.built == [built]

@@ -16,8 +16,14 @@ How it works
    each piece's cells and tabs. No edge is written twice, so the checks are tab balance (every edge
    pairs one outey with one inney) and a DLX solve.
 
-4. `main` runs the model (or reads a hand-fixed sheet with `--sheet`), runs the checks, and writes
-   the piece sheet and `puzzles/<key>_puzzle.py` only when they all pass.
+4. An unsolved sheet comes from a photo of the puzzle as sold: a solved sheet with `.` for the gap
+   cells, and the last piece, which lies outside the board, listed with its cells. Its edges are
+   checked as in a solved sheet; tab balance and a DLX solve check the rest.
+
+5. `main` runs a model, Claude or Gemini (or reads a hand-fixed sheet with `--sheet`), runs the
+   checks, and writes the piece sheet and `puzzles/<key>_puzzle.py` only when they all pass. It then
+   lists the tabs that break the checkerboard, where misreads are most likely, and warns when the
+   puzzle has more solutions than the puzzles in this series do.
 """
 
 import argparse
@@ -37,6 +43,7 @@ from last_piece_puzzle.solution import Solution
 
 if TYPE_CHECKING:
     import anthropic
+    from google import genai
 
 TAB_CHARS = {Tab.IN: "I", Tab.OUT: "O", Tab.NONE: "-"}
 CHAR_TABS = {char: tab for tab, char in TAB_CHARS.items()}
@@ -58,12 +65,18 @@ SolvedCell = tuple[str, Tabs]  # the piece letter and the cell's four tabs
 class SheetKind(Enum):
     SOLVED = "solved"  # a photo of the solved puzzle
     PIECES = "pieces"  # photos of loose pieces and the empty frame
+    UNSOLVED = "unsolved"  # a photo of the puzzle as sold: a gap, and the last piece outside
 
 
 def sheet_kind(text: str) -> SheetKind:
-    """A sheet with `row:` lines is a solved sheet; anything else is a piece sheet."""
-    solved = any(line.strip().startswith("row:") for line in text.splitlines())
-    return SheetKind.SOLVED if solved else SheetKind.PIECES
+    """A sheet with `row:` lines is solved, or unsolved if it has `.` cells or cell lines; anything
+    else is a piece sheet."""
+    lines = [line for _, line in _lines(text)]
+    rows = [line.removeprefix("row:").split() for line in lines if line.startswith("row:")]
+    if not rows:
+        return SheetKind.PIECES
+    gaps = any("." in row for row in rows) or any(CELL_LINE.fullmatch(line) for line in lines)
+    return SheetKind.UNSOLVED if gaps else SheetKind.SOLVED
 
 
 def bit_tabs(bit: Bit) -> Tabs:
@@ -180,31 +193,49 @@ def tab_balance(puzzle: Puzzle) -> int:
     return tabs.count(Tab.OUT) - tabs.count(Tab.IN) - (border.count(Tab.IN) - border.count(Tab.OUT))
 
 
-# Solved sheets
+# Solved and unsolved sheets
+
+BoardCell = SolvedCell | None  # None is a gap cell in an unsolved sheet
+Cells = tuple[tuple[BoardCell, ...], ...]
 
 
 @dataclass(frozen=True)
 class SolvedBoard:
-    """A solved sheet that passed its checks: the puzzle as it lies in the photo."""
+    """A solved or unsolved sheet that passed its checks: the puzzle as it lies in the photo."""
 
     name: str
     names: dict[str, str]  # piece letter -> piece name, in sheet order
-    cells: tuple[tuple[SolvedCell, ...], ...]  # by row, then column
+    cells: Cells  # by row, then column; None for a gap cell
     border: Border
+    loose: tuple[Piece, ...] = ()  # pieces outside the board (unsolved sheet)
 
     @property
     def grid(self) -> Solution:
-        return Solution(tuple("".join(letter for letter, _ in row) for row in self.cells))
+        """The board as photographed; `.` for a gap cell."""
+        return Solution(
+            tuple("".join(cell[0] if cell else "." for cell in row) for row in self.cells)
+        )
+
+    @property
+    def gaps(self) -> list[tuple[int, int]]:
+        return [
+            (r, c) for r, row in enumerate(self.cells) for c, cell in enumerate(row) if not cell
+        ]
 
     def to_puzzle(self) -> Puzzle:
-        """Cut each piece out of the grid, anchored on its first cell in reading order (B-0002)."""
+        """Cut each board piece out of the grid, anchored on its first cell in reading order, and
+        add the loose pieces, in sheet order (B-0002, B-0010)."""
+        loose = {piece.letter: piece for piece in self.loose}
         pieces: list[Piece] = []
         for letter, piece_name in self.names.items():
+            if letter in loose:
+                pieces.append(loose[letter])
+                continue
             places = [
-                (r, c, tabs)
+                (r, c, cell[1])
                 for r, row in enumerate(self.cells)
-                for c, (cell_letter, tabs) in enumerate(row)
-                if cell_letter == letter
+                for c, cell in enumerate(row)
+                if cell and cell[0] == letter
             ]
             top, left, _ = places[0]
             bits = tuple(Bit(r - top, c - left, *tabs) for r, c, tabs in places)
@@ -217,19 +248,31 @@ def solved_sheet_text(
     names: Sequence[tuple[str, str]],
     rows: Sequence[Sequence[tuple[str, str]]],
     border: Mapping[str, str],
+    loose: Mapping[str, Sequence[tuple[int, int, str]]] | None = None,
 ) -> str:
-    """Lay out a solved sheet from plain strings: piece names, rows of (letter, tabs), border.
+    """Lay out a solved or unsolved sheet from plain strings: piece names, rows of (letter, tabs)
+    with letter `.` for a gap, the border, and the cells of each loose piece by letter.
 
     Border sides that are missing or empty are left out. Nothing is checked.
     """
+    loose = loose or {}
     lines = [HEADER, f"name: {name}"]
-    lines += [f"piece {letter}: {piece_name}" for letter, piece_name in names]
+    for letter, piece_name in names:
+        lines.append(f"piece {letter}: {piece_name}")
+        lines += [f"  {row},{col} {tabs}" for row, col, tabs in loose.get(letter, ())]
     lines.append("")
-    lines += ["row: " + " ".join(f"{letter}:{tabs}" for letter, tabs in row) for row in rows]
+    lines += [
+        "row: " + " ".join("." if letter == "." else f"{letter}:{tabs}" for letter, tabs in row)
+        for row in rows
+    ]
     sides = [f"{side + ':':8}{border[side]}" for side in BORDER_SIDES if border.get(side)]
     if sides:
         lines += ["", *sides]
     return "\n".join(lines) + "\n"
+
+
+def _chars(tabs: Sequence[Tab]) -> str:
+    return "".join(TAB_CHARS[t] for t in tabs)
 
 
 def format_solved_sheet(board: SolvedBoard) -> str:
@@ -237,31 +280,42 @@ def format_solved_sheet(board: SolvedBoard) -> str:
         board.name,
         list(board.names.items()),
         [
-            [(letter, "".join(TAB_CHARS[t] for t in tabs)) for letter, tabs in row]
+            [(cell[0], _chars(cell[1])) if cell else (".", "") for cell in row]
             for row in board.cells
         ],
-        {side: "".join(TAB_CHARS[t] for t in getattr(board.border, side)) for side in BORDER_SIDES},
+        {side: _chars(getattr(board.border, side)) for side in BORDER_SIDES},
+        {p.letter: [(b.row, b.col, _chars(bit_tabs(b))) for b in p.bits] for p in board.loose},
     )
 
 
 def parse_solved_sheet(text: str) -> SolvedBoard:
-    """Read a solved sheet and check every edge; errors name the line or cell (B-0001).
+    """Read a solved or unsolved sheet and check every edge; errors name the line or cell
+    (B-0001, B-0009).
 
     Cells are named (row, col), counting from 0 at the top left.
     """
     name: str | None = None
     names: dict[str, str] = {}
-    rows: list[tuple[SolvedCell, ...]] = []
+    loose_bits: dict[str, list[Bit]] = {}
+    rows: list[tuple[BoardCell, ...]] = []
     given: dict[str, tuple[Tab, ...]] = {}
     for number, line in _lines(text):
         where = f"line {number}"
+        if cell := CELL_LINE.fullmatch(line):  # a cell of the loose piece named just before
+            if not names:
+                raise ValueError(f"{where}: a cell before any piece line")
+            tabs = _cell_tabs(cell[3], where)
+            loose_bits.setdefault(list(names)[-1], []).append(
+                Bit(int(cell[1]), int(cell[2]), *tabs)
+            )
+            continue
         key, colon, value = (part.strip() for part in line.partition(":"))
         if not colon:
             raise ValueError(f"{where}: cannot read {line!r}")
         if key == "name":
             name = value
         elif key == "row":
-            row = tuple(_solved_cell(token, where) for token in value.split())
+            row = tuple(_board_cell(token, where) for token in value.split())
             if rows and len(row) != len(rows[0]):
                 raise ValueError(
                     f"{where}: row has {len(row)} cells, the first row has {len(rows[0])}"
@@ -282,44 +336,68 @@ def parse_solved_sheet(text: str) -> SolvedBoard:
     if not rows:
         raise ValueError("no row lines")
     cells = tuple(rows)
-    _check_letters(cells, names)
+    loose = tuple(Piece(letter, names[letter], tuple(bits)) for letter, bits in loose_bits.items())
+    _check_letters(cells, names, loose)
     _check_edges(cells)
-    return SolvedBoard(name, names, cells, _border(cells, given))
+    return SolvedBoard(name, names, cells, _border(cells, given), loose)
 
 
-def _solved_cell(token: str, where: str) -> SolvedCell:
+def _board_cell(token: str, where: str) -> BoardCell:
+    if token == ".":
+        return None
     letter, colon, tabs = token.partition(":")
     if not colon or not re.fullmatch(r"[A-Z]", letter):
-        raise ValueError(f"{where}: cannot read cell {token!r}, expected LETTER:tabs")
+        raise ValueError(f"{where}: cannot read cell {token!r}, expected LETTER:tabs or .")
     return letter, _cell_tabs(tabs, f"{where}, cell {token}")
 
 
-def _check_letters(cells: tuple[tuple[SolvedCell, ...], ...], names: Mapping[str, str]) -> None:
+def _check_letters(cells: Cells, names: Mapping[str, str], loose: Sequence[Piece]) -> None:
+    """Every board letter has a piece line; loose pieces fill the gap exactly (B-0009)."""
+    loose_letters = {piece.letter for piece in loose}
     seen: set[str] = set()
+    gap = 0
     for r, row in enumerate(cells):
-        for c, (letter, _) in enumerate(row):
+        for c, cell in enumerate(row):
+            if cell is None:
+                gap += 1
+                continue
+            letter = cell[0]
             if letter not in names:
                 raise ValueError(f"cell ({r}, {c}): piece {letter} has no piece line")
+            if letter in loose_letters:
+                raise ValueError(f"cell ({r}, {c}): piece {letter} is loose but on the board")
             seen.add(letter)
+    if gap and not loose:
+        raise ValueError(f"{gap} gap cells but no loose piece (a piece line with cell lines)")
+    loose_cells = sum(len(piece.bits) for piece in loose)
+    if loose and loose_cells != gap:
+        raise ValueError(f"the loose pieces have {loose_cells} cells, the gap has {gap}")
     for letter in names:
-        if letter not in seen:
+        if letter not in seen and letter not in loose_letters:
             raise ValueError(f"piece {letter} covers no cells")
 
 
-def _check_edges(cells: tuple[tuple[SolvedCell, ...], ...]) -> None:
-    """`-` faces the same piece, a tab faces another piece or the frame, touching tabs differ."""
+def _check_edges(cells: Cells) -> None:
+    """`-` faces the same piece; a tab faces another piece, the gap or the frame; touching tabs
+    differ."""
     rows, cols = len(cells), len(cells[0])
     for r, row in enumerate(cells):
-        for c, (letter, tabs) in enumerate(row):
+        for c, cell in enumerate(row):
+            if cell is None:
+                continue
+            letter, tabs = cell
             for k, (side, dr, dc) in enumerate(CELL_SIDES):
                 tab = tabs[k]
                 where = f"cell ({r}, {c}) {letter} {side}"
                 nr, nc = r + dr, c + dc
-                if not (0 <= nr < rows and 0 <= nc < cols):
+                inside = 0 <= nr < rows and 0 <= nc < cols
+                neighbour = cells[nr][nc] if inside else None
+                if neighbour is None:
                     if tab is Tab.NONE:
-                        raise ValueError(f"{where}: - faces the frame, expected I or O")
+                        facing = "the gap" if inside else "the frame"
+                        raise ValueError(f"{where}: - faces {facing}, expected I or O")
                     continue
-                other, other_tabs = cells[nr][nc]
+                other, other_tabs = neighbour
                 if other == letter:
                     if tab is not Tab.NONE:
                         raise ValueError(
@@ -335,10 +413,9 @@ def _check_edges(cells: tuple[tuple[SolvedCell, ...], ...]) -> None:
                     )
 
 
-def _border(
-    cells: tuple[tuple[SolvedCell, ...], ...], given: Mapping[str, tuple[Tab, ...]]
-) -> Border:
-    """The frame is opposite each edge cell's outer tab; given border lines must agree."""
+def _border(cells: Cells, given: Mapping[str, tuple[Tab, ...]]) -> Border:
+    """The frame is opposite each edge cell's outer tab; given border lines must agree, and are
+    needed where a gap cell touches the frame (B-0009)."""
     edges = {
         "top": [(0, c, 0) for c in range(len(cells[0]))],
         "left": [(r, 0, 1) for r in range(len(cells))],
@@ -347,21 +424,117 @@ def _border(
     }
     border: dict[str, tuple[Tab, ...]] = {}
     for side, places in edges.items():
-        outer = [cells[r][c][1][k] for r, c, k in places]
-        border[side] = tuple(Tab.IN if tab is Tab.OUT else Tab.OUT for tab in outer)
-        if side not in given:
-            continue
-        if len(given[side]) != len(places):
+        if side in given and len(given[side]) != len(places):
             raise ValueError(f"{side}: {len(given[side])} tabs, the board has {len(places)}")
-        for i, ((r, c, k), tab) in enumerate(zip(places, given[side], strict=True)):
-            if tab is Tab.NONE:
+        tabs: list[Tab] = []
+        for i, (r, c, k) in enumerate(places):
+            cell = cells[r][c]
+            frame = given[side][i] if side in given else None
+            if frame is Tab.NONE:
                 raise ValueError(f"{side} tab {i}: the frame can't have -")
-            if tab is outer[i]:
+            if cell is None:
+                if frame is None:
+                    raise ValueError(f"{side}: needed, because cell ({r}, {c}) is in the gap")
+                tabs.append(frame)
+                continue
+            outer = cell[1][k]
+            if frame is outer:
                 raise ValueError(
-                    f"{side} tab {i} is {TAB_CHARS[tab]} and cell ({r}, {c}) {cells[r][c][0]}"
-                    f" {CELL_SIDES[k][0]} is {TAB_CHARS[tab]}: touching tabs must differ"
+                    f"{side} tab {i} is {TAB_CHARS[outer]} and cell ({r}, {c}) {cell[0]}"
+                    f" {CELL_SIDES[k][0]} is {TAB_CHARS[outer]}: touching tabs must differ"
                 )
+            tabs.append(Tab.IN if outer is Tab.OUT else Tab.OUT)
+        border[side] = tuple(tabs)
     return Border(**border)
+
+
+# The checkerboard pattern
+
+
+def pattern_breaks(puzzle: Puzzle, board: SolvedBoard | None = None) -> list[str]:
+    """Tabbed sides that break the checkerboard, where each cell is all outeys or all inneys and
+    neighbouring cells differ (B-0012).
+
+    Board cells are checked against one pattern for the whole board, and frame tabs at the gap
+    against the same pattern. Pieces not on a board (a piece sheet, or loose pieces) are each
+    checked against their own best pattern, and a piece sheet's frame against its own.
+    """
+    breaks: list[str] = []
+    on_board: set[str] = set()
+    if board is not None:
+        sides = [
+            (r, c, cell[0], k, tab)
+            for r, row in enumerate(board.cells)
+            for c, cell in enumerate(row)
+            if cell
+            for k, tab in enumerate(cell[1])
+            if tab is not Tab.NONE
+        ]
+        on_board = {letter for _, _, letter, _, _ in sides}
+        phase = _phase([(r + c, tab) for r, c, _, _, tab in sides])
+        breaks += [
+            f"cell ({r}, {c}) {letter} {CELL_SIDES[k][0]} is {TAB_CHARS[tab]}"
+            for r, c, letter, k, tab in sides
+            if tab is not _expected(r + c, phase)
+        ]
+        frame = _frame_sides(puzzle.border, len(board.cells), len(board.cells[0]))
+        gaps = set(board.gaps)
+        breaks += [
+            f"{side} tab {i} (at the gap) is {TAB_CHARS[tab]}"
+            for side, i, (r, c), tab in frame
+            if (r, c) in gaps and tab is _expected(r + c, phase)  # the frame is opposite its cell
+        ]
+    else:
+        frame = _frame_sides(puzzle.border, puzzle.rows, puzzle.cols)
+        phase = _phase([(r + c + 1, tab) for _, _, (r, c), tab in frame])
+        breaks += [
+            f"{side} tab {i} is {TAB_CHARS[tab]}"
+            for side, i, (r, c), tab in frame
+            if tab is not _expected(r + c + 1, phase)
+        ]
+    for piece in puzzle.pieces:
+        if piece.letter in on_board:
+            continue
+        sides = [
+            (b.row, b.col, piece.letter, k, tab)
+            for b in piece.bits
+            for k, tab in enumerate(bit_tabs(b))
+            if tab is not Tab.NONE
+        ]
+        phase = _phase([(r + c, tab) for r, c, _, _, tab in sides])
+        breaks += [
+            f"piece {letter} cell {r},{c} {CELL_SIDES[k][0]} is {TAB_CHARS[tab]}"
+            for r, c, letter, k, tab in sides
+            if tab is not _expected(r + c, phase)
+        ]
+    return breaks
+
+
+def _expected(parity: int, phase: int) -> Tab:
+    return Tab.OUT if parity % 2 == phase else Tab.IN
+
+
+def _phase(sides: Sequence[tuple[int, Tab]]) -> int:
+    """0 if cells with an even row + column are mostly outeys, else 1."""
+    even_out = sum((parity % 2 == 0) == (tab is Tab.OUT) for parity, tab in sides)
+    return 0 if 2 * even_out >= len(sides) else 1
+
+
+def _frame_sides(
+    border: Border, rows: int, cols: int
+) -> list[tuple[str, int, tuple[int, int], Tab]]:
+    """Each frame tab with the board cell it touches."""
+    cells = {
+        "top": [(0, c) for c in range(cols)],
+        "left": [(r, 0) for r in range(rows)],
+        "right": [(r, cols - 1) for r in range(rows)],
+        "bottom": [(rows - 1, c) for c in range(cols)],
+    }
+    return [
+        (side, i, cell, tab)
+        for side in BORDER_SIDES
+        for i, (cell, tab) in enumerate(zip(cells[side], getattr(border, side), strict=True))
+    ]
 
 
 # The puzzle module
@@ -412,7 +585,7 @@ def write_module(puzzle: Puzzle, key: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-# The model
+# The models
 
 
 class VisionModel(Protocol):
@@ -422,7 +595,8 @@ class VisionModel(Protocol):
 
 
 MODEL = "claude-opus-5-5"
-MAX_PHOTO_BYTES = 5 * 1024 * 1024  # the API's limit for one image
+GEMINI_MODEL = "gemini-3.1-pro-preview"  # a preview: pass another with --gemini-model if it retires
+MAX_PHOTO_BYTES = 5 * 1024 * 1024  # Claude's limit for one image; Gemini allows 20 MB a request
 MEDIA_TYPES = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -443,6 +617,10 @@ def _object(properties: Mapping[str, object]) -> dict[str, object]:
     }
 
 
+def _array(items: object) -> dict[str, object]:
+    return {"type": "array", "items": items}
+
+
 BORDER_SCHEMA = _object(
     {
         side: {
@@ -453,47 +631,31 @@ BORDER_SCHEMA = _object(
     }
 )
 CELL_TABS: dict[str, object] = {side: TAB_ENUM for side, _, _ in CELL_SIDES}
+NAMED = _object({"letter": {"type": "string"}, "name": {"type": "string"}})
+WITH_CELLS = _object(
+    {
+        "letter": {"type": "string"},
+        "name": {"type": "string"},
+        "cells": _array(
+            _object({"row": {"type": "integer"}, "col": {"type": "integer"}, **CELL_TABS})
+        ),
+    }
+)
+ROWS = _array(_array(_object({"letter": {"type": "string"}, **CELL_TABS})))
 SCHEMAS = {
     SheetKind.SOLVED: _object(
-        {
-            "name": {"type": "string"},
-            "pieces": {
-                "type": "array",
-                "items": _object({"letter": {"type": "string"}, "name": {"type": "string"}}),
-            },
-            "rows": {
-                "type": "array",
-                "items": {
-                    "type": "array",
-                    "items": _object({"letter": {"type": "string"}, **CELL_TABS}),
-                },
-            },
-            "border": BORDER_SCHEMA,
-        }
+        {"name": {"type": "string"}, "pieces": _array(NAMED), "rows": ROWS, "border": BORDER_SCHEMA}
     ),
     SheetKind.PIECES: _object(
+        {"name": {"type": "string"}, "border": BORDER_SCHEMA, "pieces": _array(WITH_CELLS)}
+    ),
+    SheetKind.UNSOLVED: _object(
         {
             "name": {"type": "string"},
+            "pieces": _array(NAMED),
+            "loose": _array(WITH_CELLS),
+            "rows": ROWS,
             "border": BORDER_SCHEMA,
-            "pieces": {
-                "type": "array",
-                "items": _object(
-                    {
-                        "letter": {"type": "string"},
-                        "name": {"type": "string"},
-                        "cells": {
-                            "type": "array",
-                            "items": _object(
-                                {
-                                    "row": {"type": "integer"},
-                                    "col": {"type": "integer"},
-                                    **CELL_TABS,
-                                }
-                            ),
-                        },
-                    }
-                ),
-            },
         }
     ),
 }
@@ -515,6 +677,9 @@ Name each piece from its picture, in a few words, e.g. "Golfer in red pants". Gi
 letters A, B, C, ... Give the puzzle the name printed on the box, if it shows.
 Ignore anything outside the board, such as box art or a cut-out for the "last piece".
 """
+CELLS_AS_OFFSETS = """\
+cells as (row, col) offsets from its first cell (the top cell, leftmost if there are two), rows
+counting down and columns to the right, as it lies in the photo, and each cell's four tabs."""
 PROMPTS = {
     SheetKind.SOLVED: ABOUT
     + """
@@ -524,12 +689,38 @@ it and its four tabs as it lies on the board. Where two pieces touch, one cell h
 other "I" on the shared side. Inside a piece, the shared sides are "-".
 """,
     SheetKind.PIECES: ABOUT
-    + """
+    + f"""
 The photos show the pieces loose, picture side up, and the empty frame. For each piece give its
-cells as (row, col) offsets from its first cell (the top cell, leftmost if there are two), rows
-counting down and columns to the right, as it lies in the photo, and each cell's four tabs.
+{CELLS_AS_OFFSETS}
+""",
+    SheetKind.UNSOLVED: ABOUT.replace(
+        'Ignore anything outside the board, such as box art or a cut-out for the "last piece".',
+        "Ignore the box art.",
+    )
+    + f"""
+The photo shows the puzzle as sold: every piece but one is in the frame, leaving a gap, and the
+last piece lies outside the board, where it does not fit the gap as it is. Go through the board
+cell by cell, row by row from the top, left to right. For each cell give the letter of the piece
+covering it and its four tabs as it lies on the board. For a gap cell give the letter "." and "-"
+for its four tabs. A side facing the gap still has its tab ("I" or "O"). Where two pieces touch,
+one cell has "O" and the other "I" on the shared side. Inside a piece, the shared sides are "-".
+Give the frame's tabs all the way round, along the gap too.
+
+List the pieces on the board under "pieces". List the last piece only under "loose", with its
+{CELLS_AS_OFFSETS}
 """,
 }
+
+
+def photo_data(photo: Path) -> tuple[str, str]:
+    """The photo's media type and its bytes as base64; unsupported or oversized photos raise."""
+    media_type = MEDIA_TYPES.get(photo.suffix.lower())
+    if media_type is None:
+        raise ValueError(f"{photo}: use a JPEG, PNG, GIF or WebP photo")
+    data = photo.read_bytes()
+    if len(data) > MAX_PHOTO_BYTES:
+        raise ValueError(f"{photo}: {len(data)} bytes, the limit is {MAX_PHOTO_BYTES}")
+    return media_type, base64.standard_b64encode(data).decode("ascii")
 
 
 class ClaudeVisionModel:
@@ -539,57 +730,92 @@ class ClaudeVisionModel:
         self.client = client
 
     def read(self, photos: Sequence[Path], kind: SheetKind, /) -> str:
-        if self.client is None:
-            import anthropic
+        import anthropic
 
+        if self.client is None:
             self.client = anthropic.Anthropic()
         content: list[anthropic.types.beta.BetaContentBlockParam] = [
             image_block(photo) for photo in photos
         ]
         content.append({"type": "text", "text": PROMPTS[kind]})
-        with self.client.beta.messages.stream(
-            model=MODEL,
-            max_tokens=64000,
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",  # a declined request is retried on another model
-            thinking={"type": "adaptive"},
-            output_config={
-                "effort": "high",
-                "format": {"type": "json_schema", "schema": SCHEMAS[kind]},
-            },
-            messages=[{"role": "user", "content": content}],
-        ) as stream:
-            message = stream.get_final_message()
+        try:
+            with self.client.beta.messages.stream(
+                model=MODEL,
+                max_tokens=64000,
+                betas=["server-side-fallback-2026-07-01"],
+                fallbacks="default",  # a declined request is retried on another model
+                thinking={"type": "adaptive"},
+                output_config={
+                    "effort": "high",
+                    "format": {"type": "json_schema", "schema": SCHEMAS[kind]},
+                },
+                messages=[{"role": "user", "content": content}],
+            ) as stream:
+                message = stream.get_final_message()
+        except anthropic.APIError as error:
+            raise ValueError(f"Claude API error: {error}") from error
         if message.stop_reason == "refusal":
             details = message.stop_details
             raise ValueError(f"the model declined ({details.category if details else 'no reason'})")
         if message.stop_reason == "max_tokens":
             raise ValueError("the answer was cut off (max_tokens)")
         text = next((block.text for block in message.content if block.type == "text"), None)
-        if text is None:
-            raise ValueError("the answer has no text")
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError as error:
-            raise ValueError(f"the answer is not JSON: {error}") from error
-        return sheet_from_json(data, kind)
+        return sheet_from_text(text, kind)
 
 
 def image_block(photo: Path) -> anthropic.types.beta.BetaImageBlockParam:
-    media_type = MEDIA_TYPES.get(photo.suffix.lower())
-    if media_type is None:
-        raise ValueError(f"{photo}: use a JPEG, PNG, GIF or WebP photo")
-    data = photo.read_bytes()
-    if len(data) > MAX_PHOTO_BYTES:
-        raise ValueError(f"{photo}: {len(data)} bytes, the limit is {MAX_PHOTO_BYTES}")
+    media_type, data = photo_data(photo)
     return {
         "type": "image",
         "source": {
             "type": "base64",
             "media_type": media_type,  # type: ignore[typeddict-item]
-            "data": base64.standard_b64encode(data).decode("ascii"),
+            "data": data,
         },
     }
+
+
+class GeminiVisionModel:
+    """Reads the photos with Gemini, asking for JSON that matches the sheet's schema (B-0014)."""
+
+    def __init__(self, client: genai.Client | None = None, model: str = GEMINI_MODEL) -> None:
+        self.client = client
+        self.model = model
+
+    def read(self, photos: Sequence[Path], kind: SheetKind, /) -> str:
+        from google import genai
+
+        if self.client is None:
+            self.client = genai.Client()  # the key comes from GEMINI_API_KEY
+        items: list[dict[str, str]] = []
+        for photo in photos:
+            media_type, data = photo_data(photo)
+            items.append({"type": "image", "data": data, "mime_type": media_type})
+        items.append({"type": "text", "text": PROMPTS[kind]})
+        try:
+            interaction = self.client.interactions.create(
+                model=self.model,
+                input=items,
+                response_format={
+                    "type": "text",
+                    "mime_type": "application/json",
+                    "schema": SCHEMAS[kind],
+                },
+            )
+        except genai.errors.APIError as error:
+            raise ValueError(f"Gemini API error: {error}") from error
+        return sheet_from_text(getattr(interaction, "output_text", None), kind)
+
+
+def sheet_from_text(text: str | None, kind: SheetKind) -> str:
+    """Turn a model's JSON answer into sheet text; no text or bad JSON raises ValueError."""
+    if not text:
+        raise ValueError("the answer has no text")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"the answer is not JSON: {error}") from error
+    return sheet_from_json(data, kind)
 
 
 def sheet_from_json(data: object, kind: SheetKind) -> str:
@@ -599,33 +825,32 @@ def sheet_from_json(data: object, kind: SheetKind) -> str:
     sides = {side: _field(border.get(side), f"border {side}", str) for side in BORDER_SIDES}
     name = _field(answer.get("name"), "name", str)
     pieces = _field(answer.get("pieces"), "pieces", list)
-    if kind is SheetKind.SOLVED:
-        names = [
-            (_field(p.get("letter"), "letter", str), _field(p.get("name"), "name", str))
-            for p in (_field(p, "piece", dict) for p in pieces)
-        ]
-        rows = [
-            [_json_cell(_field(cell, "cell", dict)) for cell in _field(row, "row", list)]
-            for row in _field(answer.get("rows"), "rows", list)
-        ]
-        return solved_sheet_text(name, names, rows, sides)
-    listed: list[tuple[str, str, list[tuple[int, int, str]]]] = []
-    for item in pieces:
-        piece = _field(item, "piece", dict)
-        cells = [
-            (_field(c.get("row"), "row", int), _field(c.get("col"), "col", int), _json_cell(c)[1])
-            for c in (
-                _field(cell, "cell", dict) for cell in _field(piece.get("cells"), "cells", list)
-            )
-        ]
-        listed.append(
-            (
-                _field(piece.get("letter"), "letter", str),
-                _field(piece.get("name"), "name", str),
-                cells,
-            )
-        )
-    return piece_sheet_text(name, sides, listed)
+    if kind is SheetKind.PIECES:
+        return piece_sheet_text(name, sides, [_json_piece(item) for item in pieces])
+    names = [
+        (_field(p.get("letter"), "letter", str), _field(p.get("name"), "name", str))
+        for p in (_field(p, "piece", dict) for p in pieces)
+    ]
+    loose: dict[str, list[tuple[int, int, str]]] = {}
+    if kind is SheetKind.UNSOLVED:
+        for item in _field(answer.get("loose"), "loose", list):
+            letter, piece_name, cells = _json_piece(item)
+            names.append((letter, piece_name))
+            loose[letter] = cells
+    rows = [
+        [_json_cell(_field(cell, "cell", dict)) for cell in _field(row, "row", list)]
+        for row in _field(answer.get("rows"), "rows", list)
+    ]
+    return solved_sheet_text(name, names, rows, sides, loose)
+
+
+def _json_piece(item: object) -> tuple[str, str, list[tuple[int, int, str]]]:
+    piece = _field(item, "piece", dict)
+    cells = [
+        (_field(c.get("row"), "row", int), _field(c.get("col"), "col", int), _json_cell(c)[1])
+        for c in (_field(cell, "cell", dict) for cell in _field(piece.get("cells"), "cells", list))
+    ]
+    return _field(piece.get("letter"), "letter", str), _field(piece.get("name"), "name", str), cells
 
 
 def _json_cell(cell: Mapping[str, object]) -> tuple[str, str]:
@@ -643,16 +868,23 @@ def _field[T](value: object, what: str, kind: type[T]) -> T:
 
 # The command line
 
+MANY_SOLUTIONS = 20  # the puzzles in the series have only a few (B-0013)
 
-def check_sheet(text: str) -> tuple[Puzzle, Solution | None]:
-    """Run the checks for the sheet's kind; the photographed board too, for a solved sheet."""
-    if sheet_kind(text) is SheetKind.SOLVED:
+
+def check_sheet(text: str) -> tuple[Puzzle, SolvedBoard | None]:
+    """Run the checks for the sheet's kind, and return the puzzle and, for a solved or unsolved
+    sheet, the board as photographed."""
+    if sheet_kind(text) is SheetKind.PIECES:
+        puzzle = parse_piece_sheet(text)
+        board = None
+    else:
         board = parse_solved_sheet(text)
-        return board.to_puzzle(), board.grid
-    puzzle = parse_piece_sheet(text)
+        puzzle = board.to_puzzle()
+        if not board.loose:
+            return puzzle, board  # a solved photo: every edge was read twice
     if balance := tab_balance(puzzle):
         raise ValueError(f"tabs don't balance (off by {balance}): at least one tab is misread")
-    return puzzle, None
+    return puzzle, board
 
 
 def main(
@@ -667,9 +899,19 @@ def main(
     )
     parser.add_argument("key", help="the puzzle's key, e.g. puzzling_pets")
     parser.add_argument("photos", nargs="*", type=Path, help="photos to read")
-    parser.add_argument("--pieces", action="store_true", help="the photos show loose pieces")
+    kinds = parser.add_mutually_exclusive_group()
+    kinds.add_argument("--pieces", action="store_true", help="the photos show loose pieces")
+    kinds.add_argument(
+        "--unsolved", action="store_true", help="the photo shows the puzzle as sold, with a gap"
+    )
     parser.add_argument("--sheet", type=Path, help="check this sheet instead of reading photos")
     parser.add_argument("--force", action="store_true", help="replace an existing puzzle module")
+    parser.add_argument(
+        "--model", choices=("claude", "gemini"), default="claude", help="model to read the photos"
+    )
+    parser.add_argument(
+        "--gemini-model", default=GEMINI_MODEL, help=f"Gemini model (default: {GEMINI_MODEL})"
+    )
     args = parser.parse_args(argv)
     if not PUZZLE_KEY.fullmatch(args.key):
         parser.error("the key must be lower case letters, digits and _, e.g. puzzling_pets")
@@ -689,9 +931,21 @@ def main(
     else:
         if sheet.exists():
             fail(f"{sheet} exists and may have hand fixes; check it with --sheet {sheet}")
-        kind = SheetKind.PIECES if args.pieces else SheetKind.SOLVED
+        kind = (
+            SheetKind.PIECES
+            if args.pieces
+            else SheetKind.UNSOLVED
+            if args.unsolved
+            else SheetKind.SOLVED
+        )
+        if model is None:
+            model = (
+                GeminiVisionModel(model=args.gemini_model)
+                if args.model == "gemini"
+                else ClaudeVisionModel()
+            )
         try:
-            text = (model or ClaudeVisionModel()).read(args.photos, kind)
+            text = model.read(args.photos, kind)
         except ValueError as error:
             fail(str(error))
         folder.mkdir(parents=True, exist_ok=True)
@@ -699,14 +953,14 @@ def main(
         print(f"Wrote {sheet}")
     fix = f"Fix {sheet}, then run: last-piece-scan {args.key} --sheet {sheet}"
     try:
-        puzzle, photographed = check_sheet(text)
+        puzzle, board = check_sheet(text)
     except ValueError as error:
         fail(f"{sheet}: {error}\n{fix}")
     result = solver.solve(puzzle, method="dlx")
     found = [f.solution.grid for f in result.solutions]
     if not found:
         fail(f"{sheet}: the puzzle has no solution, so some tab or cell is wrong\n{fix}")
-    if photographed is not None and photographed.grid not in found:
+    if board is not None and not board.loose and board.grid.grid not in found:
         fail(f"{sheet}: the photographed board is not among the solutions")
     pieces_sheet = folder / "pieces.txt"
     folder.mkdir(parents=True, exist_ok=True)
@@ -714,3 +968,13 @@ def main(
     module.write_text(write_module(puzzle, args.key))
     print(f"{len(found)} solutions found.")
     print(f"Wrote {pieces_sheet} and {module}")
+    breaks = pattern_breaks(puzzle, board)
+    if breaks:
+        print(f"Tabs that break the checkerboard ({len(breaks)}); check them in the photo:")
+        for line in breaks:
+            print(f"  {line}")
+    if len(found) > MANY_SOLUTIONS:
+        print(
+            f"Warning: {len(found)} solutions, but the puzzles in this series have only a few."
+            " Some tab, probably a break in the checkerboard, is likely misread."
+        )
