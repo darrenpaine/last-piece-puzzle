@@ -1,7 +1,6 @@
 # SPEC-0011: Scan a puzzle from photos
 
-Status: Reviewed; the unsolved sheet (section 3, B-0009..B-0011, AT-0009..AT-0011) and the trial
-follow-ups (B-0012, B-0013, AT-0012) and the Gemini option (B-0014, B-0015, AT-0013) are in review
+Status: Reviewed
 
 ## Goal
 Add other puzzles in the series without typing every tab by hand. A vision model reads a photo and
@@ -133,7 +132,7 @@ Checks:
   and it is one call per puzzle.
 - The API key comes from the environment (`ANTHROPIC_API_KEY` or an `ant auth login` profile). Nothing is stored.
 
-### 5. Gemini as a second model (in review)
+### 5. Gemini as a second model
 `GeminiVisionModel` is a second `VisionModel`, chosen with `--model gemini`. It sends the same prompts
 and asks for JSON matching the same schemas, so everything after the call is unchanged.
 - It uses the `google-genai` SDK's Interactions API, as the Gemini docs show it today:
@@ -287,7 +286,7 @@ What it shows:
   solves. But the puzzle came out far too easy: 1,614 solutions instead of 5. The deliberate break is
   what makes the puzzle hard, so a large solution count is a strong sign the break was misread.
 
-Follow-ups (in review):
+Follow-ups:
 - B-0012: After the checks pass, the scanner lists every tabbed side that breaks the checkerboard (and
   the frame tabs that break it), so a person can check exactly those few places in the photo. It is a
   report, not a failure: other puzzles may use a different pattern.
