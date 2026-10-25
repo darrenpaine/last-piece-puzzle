@@ -1,6 +1,7 @@
 # SPEC-0011: Scan a puzzle from photos
 
-Status: Reviewed; the unsolved sheet (section 3, B-0009..B-0011, AT-0009..AT-0011) is in review
+Status: Reviewed; the unsolved sheet (section 3, B-0009..B-0011, AT-0009..AT-0011) and the trial
+follow-ups (B-0012, B-0013, AT-0012) are in review
 
 ## Goal
 Add other puzzles in the series without typing every tab by hand. A vision model reads a photo and
@@ -231,6 +232,41 @@ Run the real model on the photo of the solved Golfing Madness, where the answer 
 This decides whether the approach is good enough, and how much hand fixing to expect, before scanning
 Puzzling Pets (unsolved) and Flight of Fancy (loose pieces). For those there is no known answer, so the
 checks are tab balance and at least one solution.
+
+### Trial result (2026-10-25)
+No API key yet, so a fresh Claude Code subagent, which had seen neither the code nor the answer, read
+the photo with the same prompt. It also had an upright copy and enlarged, higher-contrast crops, which
+the API call would not get. Compared with fixture 1 (the board in the photo):
+
+| What                       | Result                              |
+|----------------------------|-------------------------------------|
+| Cells with the right piece | 62 / 64 (15 pieces found, not 14)   |
+| Tabbed sides right         | 149 / 156                           |
+| Frame tabs right           | 31 / 32 (missed bottom column 7)    |
+| Edge clashes flagged       | 0                                   |
+| Scanner checks             | all passed                          |
+| DLX solutions              | 1,614 (the real puzzle has 5)       |
+
+What it shows:
+- **Piece outlines read well**; the two wrong cells came from one split piece.
+- **The tabs were mostly inferred, not read.** The subagent said it could not read the inside tabs at
+  this resolution, so it assumed a checkerboard (cells where row + column is even are all outeys), which
+  matched the frame. That guess is almost right: in Golfing Madness only **1** tabbed side breaks the
+  checkerboard, the deliberate break at the bottom right. The subagent missed it and put a break in the
+  wrong place.
+- **The checks didn't notice.** A checkerboard always passes the edge check, and a solved photo always
+  solves. But the puzzle came out far too easy: 1,614 solutions instead of 5. The deliberate break is
+  what makes the puzzle hard, so a large solution count is a strong sign the break was misread.
+
+Follow-ups (in review):
+- B-0012: After the checks pass, the scanner lists every tabbed side that breaks the checkerboard (and
+  the frame tabs that break it), so a person can check exactly those few places in the photo. It is a
+  report, not a failure: other puzzles may use a different pattern.
+- B-0013: When there are more than 20 solutions, the scanner still writes the module but warns that the
+  series has only a few solutions, so some tab, probably a break in the pattern, is likely misread.
+- AT-0012: For the AT-0001 sheet, the report lists the one Golfing Madness break (bottom right) and
+  there's no warning. For the trial sheet (`scans/golfing_madness_scan/sheet.txt`, committed as the
+  record) it lists the wrong break and warns about 1,614 solutions.
 
 ## Out of scope
 - Finding piece outlines with classic image processing (OpenCV and so on).
