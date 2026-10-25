@@ -91,8 +91,8 @@ pieces in the module.
 ### 3. Unsolved sheet: the puzzle as sold (Puzzling Pets)
 The puzzle as it comes in the box: every piece but one in the frame, leaving a gap, and the last
 piece lying outside the board, where it won't fit the gap as it is. Our Puzzling Pets photo
-(`scans/puzzling_pets/puzzling_pets.jpg`, 1000×750, frame showing) has a 3-cell L-shaped gap, and the
-loose piece (a grey cat, 3 cells) lies on the box art.
+(`scans/puzzling_pets/puzzling_pets.jpg`, 750×1000, turned upright, frame showing) has a 3-cell
+L-shaped gap, and the loose piece (a grey cat, 3 cells) sits in its holder at the top right of the box.
 
 The sheet is a solved sheet with two additions: gap cells are written `.`, and the loose piece has
 cell lines under its `piece` line, as in a piece sheet. A piece with cell lines is loose; a piece
