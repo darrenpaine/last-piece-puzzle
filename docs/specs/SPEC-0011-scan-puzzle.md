@@ -1,7 +1,7 @@
 # SPEC-0011: Scan a puzzle from photos
 
 Status: Reviewed; the unsolved sheet (section 3, B-0009..B-0011, AT-0009..AT-0011) and the trial
-follow-ups (B-0012, B-0013, AT-0012) are in review
+follow-ups (B-0012, B-0013, AT-0012) and the Gemini option (B-0014, B-0015, AT-0013) are in review
 
 ## Goal
 Add other puzzles in the series without typing every tab by hand. A vision model reads a photo and
@@ -133,6 +133,21 @@ Checks:
   and it is one call per puzzle.
 - The API key comes from the environment (`ANTHROPIC_API_KEY` or an `ant auth login` profile). Nothing is stored.
 
+### 5. Gemini as a second model (in review)
+`GeminiVisionModel` is a second `VisionModel`, chosen with `--model gemini`. It sends the same prompts
+and asks for JSON matching the same schemas, so everything after the call is unchanged.
+- It uses the `google-genai` SDK's Interactions API, as the Gemini docs show it today:
+  `client.interactions.create(model=..., input=[image items..., text item], response_format={"type":
+  "text", "mime_type": "application/json", "schema": SCHEMAS[kind]})`, and reads `output_text`. Each
+  image item is `{"type": "image", "data": <base64>, "mime_type": ...}`. The exact names are checked
+  against the installed SDK when coding.
+- Model: `gemini-3.1-pro-preview` by default (the most capable Gemini model now, but a preview that
+  Google may retire), or any other with `--gemini-model`, e.g. the stable `gemini-3.8-flash`.
+- The key comes from `GEMINI_API_KEY`. Google AI Studio's free tier is enough for a few scans.
+- Inline requests can be up to 20 MB in total, so the 5 MB per photo limit for Claude also covers Gemini.
+- With two models, the same photo can be scanned by each and the two sheets compared: where they
+  differ is a likely misread. That is done by hand (`diff`), not by the scanner.
+
 ## Inputs / Outputs
 - New module `src/last_piece_puzzle/scan.py`:
   - `parse_solved_sheet(text: str) -> SolvedBoard`: the letter grid, piece names, cell tabs and border.
@@ -140,13 +155,16 @@ Checks:
   - `parse_piece_sheet(text: str) -> Puzzle` and `format_piece_sheet(puzzle: Puzzle) -> str`, which round-trip.
   - `tab_balance(puzzle: Puzzle) -> int`: 0 when tabs balance.
   - `write_module(puzzle: Puzzle, key: str) -> str`: the source of `<key>_puzzle.py`.
-  - `VisionModel` (Protocol), `SheetKind` (`Enum`: `SOLVED`, `PIECES`, `UNSOLVED`) and `ClaudeVisionModel`.
+  - `VisionModel` (Protocol), `SheetKind` (`Enum`: `SOLVED`, `PIECES`, `UNSOLVED`), `ClaudeVisionModel`
+    and `GeminiVisionModel`.
   - `SolvedBoard` also holds gap cells (`None`) and the loose pieces; `parse_solved_sheet` reads both
     solved and unsolved sheets.
 - New script `last-piece-scan` (in `[project.scripts]`):
   - `last-piece-scan KEY PHOTO... [--pieces | --unsolved]` calls the model, writes `scans/KEY/sheet.txt`,
     then checks and solves. A solved photo is the default; `--pieces` is for loose pieces, `--unsolved`
     for the puzzle as sold.
+  - `--model {claude,gemini}` picks the model (default `claude`); `--gemini-model NAME` overrides the
+    Gemini model.
   - `last-piece-scan KEY --sheet scans/KEY/sheet.txt` skips the model: check a hand-fixed sheet (the
     kind is read from the sheet: `row:` lines mean solved or unsolved, and `.` cells or a piece with
     cell lines mean unsolved).
@@ -155,7 +173,9 @@ Checks:
 - Folder `scans/KEY/`: the photos and sheets. Photos are git-ignored; sheets are committed.
 
 ## Dependencies
-- `anthropic` (Claude Python SDK) as an optional extra: `uv add --optional scan anthropic` (approved). The solver
+- `anthropic` (Claude Python SDK) as an optional extra: `uv add --optional scan anthropic` (approved).
+- `google-genai` (Gemini Python SDK) in the same `scan` extra (approved), so `uv sync --extra scan`
+  installs both. `scan.py` imports it only inside `GeminiVisionModel`. The solver
   keeps no runtime dependencies. `scan.py` imports `anthropic` only inside `ClaudeVisionModel`.
 - Possibly `pillow`, to shrink big phone photos or apply the EXIF rotation. Left out unless needed;
   it would need approval.
@@ -183,6 +203,11 @@ Checks:
 - B-0008: `ClaudeVisionModel` sends the photos as base64 images with the prompt for the sheet kind, asks
   for JSON that matches that kind's schema, and turns the JSON into sheet text. A refusal, a cut-off
   answer or JSON that does not match raises `ValueError` with the reason; nothing is written.
+- B-0014: `GeminiVisionModel` sends the photos as base64 image items with the prompt for the sheet kind,
+  asks for JSON that matches that kind's schema, and turns the JSON into sheet text with the same code as
+  `ClaudeVisionModel`. No text, text that is not JSON, or JSON that does not match raises `ValueError`.
+- B-0015: `--model gemini` uses `GeminiVisionModel` (with `--gemini-model` if given); `--model claude`,
+  the default, uses `ClaudeVisionModel`. A test can still pass any `VisionModel` to `main`.
 - B-0009: `parse_solved_sheet` also reads unsolved sheets: `.` cells are gaps, and a piece with cell
   lines is loose. A side facing a gap must be `I` or `O`. It raises `ValueError` when a gap cell touches
   the frame on a side with no border line, when the loose pieces' cell count differs from the gap's,
@@ -212,6 +237,10 @@ Checks:
 - AT-0008: `ClaudeVisionModel`, with the SDK client replaced by a stub: builds one request with every
   photo as an image block, turns valid JSON into sheet text, and raises `ValueError` on a refusal, on
   `max_tokens`, and on JSON that does not match (B-0008).
+- AT-0013: `GeminiVisionModel` with the SDK client replaced by a stub: one request with every photo as
+  an image item, the prompt and schema for the kind, and the chosen model name; valid JSON gives the same
+  sheet text as for Claude; no text, bad JSON and JSON of the wrong shape raise `ValueError`. The CLI
+  builds a `GeminiVisionModel` for `--model gemini` and passes `--gemini-model` through (B-0014, B-0015).
 - AT-0009: An unsolved sheet made from fixture 1 by taking out one piece (its cells become `.`, and it is
   listed as loose with its cells) parses, and `to_puzzle()` gives a puzzle with the same pieces up to
   rotation, the `PUZZLE` border and the 5 fixture solutions (B-0009, B-0010).
@@ -278,3 +307,4 @@ Follow-ups (in review):
 - Puzzling Pets is next, from a photo of the puzzle as sold (the unsolved sheet, added after review).
 - Flight of Fancy is from a photo of loose pieces with the frame showing (the piece sheet).
 - `anthropic` is approved as an optional `scan` extra.
+- Gemini is added as a second model option; `google-genai` is approved, in the same `scan` extra.
