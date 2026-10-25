@@ -85,7 +85,7 @@ def canonical(piece: Piece) -> frozenset[frozenset[tuple[int, int, Tab, Tab, Tab
 
 
 def grids(puzzle: Puzzle) -> set[tuple[str, ...]]:
-    return {found.solution.grid for found in solver.solve(puzzle, method="dlx").solutions}
+    return {found.solution.grid for found in solver.solve(puzzle, method="exactcover").solutions}
 
 
 @pytest.mark.spec("SPEC-0011", "AT-0001")

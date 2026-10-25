@@ -27,6 +27,12 @@ How it works
    each row's `excludes` (shared columns plus tab clashes), and the rows still possible, `alive`.
    Choosing a row is then `alive & ~excludes[row]`, and counting a column's rows left is
    `(columns[k] & alive).bit_count()`; both run in C inside Python.
+
+   This is not dancing links (DLX), Knuth's usual way to run Algorithm X: circular doubly linked
+   lists, where covering a column unlinks its nodes and backtracking relinks them. Here the table is
+   small (1,419 rows by 78 columns), so each set fits in one int and one C-level AND replaces many
+   Python-level pointer updates. Undo is free: `alive` is an int, each call gets its own, and
+   returning from the call is the undo.
 """
 
 from collections.abc import Iterator, Sequence
@@ -136,7 +142,7 @@ class CoverTable:
             self.excludes.append(mask)
 
 
-class DlxSolver(Solver):
+class ExactCoverSolver(Solver):
     """Finds the same solutions as `Solver`, in the same order, by exact cover (SPEC-0010)."""
 
     def __init__(self, puzzle: Puzzle, all_rotations: bool = False) -> None:

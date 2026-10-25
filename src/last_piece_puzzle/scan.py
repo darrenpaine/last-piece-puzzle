@@ -14,11 +14,11 @@ How it works
 
 3. A piece sheet comes from photos of loose pieces and the empty frame. It lists the border, then
    each piece's cells and tabs. No edge is written twice, so the checks are tab balance (every edge
-   pairs one outey with one inney) and a DLX solve.
+   pairs one outey with one inney) and an exact cover solve.
 
 4. An unsolved sheet comes from a photo of the puzzle as sold: a solved sheet with `.` for the gap
    cells, and the last piece, which lies outside the board, listed with its cells. Its edges are
-   checked as in a solved sheet; tab balance and a DLX solve check the rest.
+   checked as in a solved sheet; tab balance and an exact cover solve check the rest.
 
 5. `main` runs a model, Claude or Gemini (or reads a hand-fixed sheet with `--sheet`), runs the
    checks, and writes the piece sheet and `puzzles/<key>_puzzle.py` only when they all pass. It then
@@ -988,7 +988,7 @@ def main(
         puzzle, board = check_sheet(text)
     except ValueError as error:
         fail(f"{sheet}: {error}\n{fix}")
-    result = solver.solve(puzzle, method="dlx")
+    result = solver.solve(puzzle, method="exactcover")
     found = [f.solution.grid for f in result.solutions]
     if not found:
         fail(f"{sheet}: the puzzle has no solution, so some tab or cell is wrong\n{fix}")

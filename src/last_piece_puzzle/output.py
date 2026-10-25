@@ -43,8 +43,8 @@ class ConsoleOutput(Output):
     def finish(
         self, puzzle: Puzzle, result: SolveResult, seconds: float, workers: int, method: Method
     ) -> None:
-        if method == "dlx":
-            done = f"{result.moves} rows chosen, {seconds:.1f} s (DLX)"
+        if method == "exactcover":
+            done = f"{result.moves} rows chosen, {seconds:.1f} s (Algorithm X)"
         else:
             used = f"{workers} {'worker' if workers == 1 else 'workers'}"
             done = f"{result.moves} moves, {seconds:.1f} s ({used})"

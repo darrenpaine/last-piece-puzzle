@@ -14,8 +14,9 @@ from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.solution import Solution
 
 # "fastsearch" is `FastSolver` and "search" is `Solver`: the same search, so the same results.
-# "dlx" is `DlxSolver`, exact cover (SPEC-0010): the same solutions, found a different way.
-Method = Literal["dlx", "fastsearch", "search"]
+# "exactcover" is `ExactCoverSolver`, Algorithm X on bitsets (SPEC-0010): the same solutions,
+# found a different way.
+Method = Literal["exactcover", "fastsearch", "search"]
 # The two depth-first searches: identical results, including every move count.
 SEARCH_METHODS: tuple[Method, ...] = ("fastsearch", "search")
 
@@ -148,10 +149,10 @@ def solve(
         from last_piece_puzzle.engine import FastSolver  # imports this module
 
         solver_class = FastSolver
-    elif method == "dlx":
-        from last_piece_puzzle.dlx import DlxSolver  # imports this module
+    elif method == "exactcover":
+        from last_piece_puzzle.exact_cover import ExactCoverSolver  # imports this module
 
-        solver_class = DlxSolver
+        solver_class = ExactCoverSolver
     return solver_class(puzzle, all_rotations).solve(start_pieces, on_start, on_solution, workers)
 
 

@@ -8,7 +8,7 @@ from last_piece_puzzle.output import ConsoleOutput, Output
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.solver import Method
 
-METHODS: tuple[Method, ...] = ("dlx", "fastsearch", "search")
+METHODS: tuple[Method, ...] = ("exactcover", "fastsearch", "search")
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -29,10 +29,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument(
         "--method",
         choices=METHODS,
-        default="dlx",
+        default="exactcover",
         help=(
-            "dlx: exact cover, fastest; fastsearch: fast depth-first search;"
-            " search: the original port of the C++ (default: dlx)"
+            "exactcover: Algorithm X (exact cover), fastest; fastsearch: fast depth-first search;"
+            " search: the original port of the C++ (default: exactcover)"
         ),
     )
     args = parser.parse_args(argv)
