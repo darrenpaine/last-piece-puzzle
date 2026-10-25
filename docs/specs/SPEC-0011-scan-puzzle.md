@@ -1,6 +1,6 @@
 # SPEC-0011: Scan a puzzle from photos
 
-Status: Reviewed
+Status: Reviewed (B-0016, B-0017 and AT-0014 added on Darren's go-ahead after the Puzzling Pets read)
 
 ## Goal
 Add other puzzles in the series without typing every tab by hand. A vision model reads a photo and
@@ -111,16 +111,22 @@ row: ...
 top:    IOIOIOIO                 # needed wherever a gap cell touches the frame
 ```
 
+The layout as sold is not a solution, so two inneys can sit side by side (a hole next to a hole);
+only two outeys can't. Every puzzle in the series comes with exactly one such pair of inneys, between
+an edge piece and the frame (Darren). In Puzzling Pets it is cell (7, 6) south against bottom tab 6,
+and the loose piece's one wrong tab is the other half of the same break.
+
 Checks:
-1. The solved sheet checks (1 to 4) for the cells with pieces, except that a side facing a gap cell
+1. The solved sheet checks (1 and 2) for the cells with pieces, except that a side facing a gap cell
    is a tab (`I` or `O`) with nothing to pair it with.
-2. Where a gap cell touches the frame, the border line for that side must be given: there is no cell
-   tab to work it out from.
-3. The loose pieces have as many cells as the gap.
-4. `Puzzle(...)` accepts the result, with the board pieces cut out of the grid and the loose pieces
+2. Touching tabs may both be `I`, but never both `O`, between cells and between a cell and the frame.
+3. All four border lines must be given: where an edge cell has an inney the frame could have either
+   tab, so the frame can't be worked out from the cells.
+4. The loose pieces have as many cells as the gap.
+5. `Puzzle(...)` accepts the result, with the board pieces cut out of the grid and the loose pieces
    taken from their cell lines.
-5. **Tab balance**, as for a piece sheet: the loose piece and the sides around the gap are read only once.
-6. **Solve** with DLX. Unlike a solved photo, this is a real check: the puzzle must have a solution,
+6. **Tab balance**, as for a piece sheet: the loose piece and the sides around the gap are read only once.
+7. **Solve** with DLX. Unlike a solved photo, this is a real check: the puzzle must have a solution,
    and the photographed layout is not one.
 
 ### 4. The model call
@@ -207,9 +213,14 @@ and asks for JSON matching the same schemas, so everything after the call is unc
   `ClaudeVisionModel`. No text, text that is not JSON, or JSON that does not match raises `ValueError`.
 - B-0015: `--model gemini` uses `GeminiVisionModel` (with `--gemini-model` if given); `--model claude`,
   the default, uses `ClaudeVisionModel`. A test can still pass any `VisionModel` to `main`.
+- B-0016: In an unsolved sheet, two touching inneys are allowed, between cells or between a cell and
+  the frame; two touching outeys still raise `ValueError`. Solved sheets keep the strict check.
+- B-0017: An unsolved sheet must give all four border lines; a missing one raises `ValueError`. The
+  scanner lists where inneys touch, and warns unless there is exactly one such pair and it is on the
+  frame, as in every puzzle of the series as sold. The `--unsolved` prompt says so too.
 - B-0009: `parse_solved_sheet` also reads unsolved sheets: `.` cells are gaps, and a piece with cell
   lines is loose. A side facing a gap must be `I` or `O`. It raises `ValueError` when a gap cell touches
-  the frame on a side with no border line, when the loose pieces' cell count differs from the gap's,
+  the frame on a side with no border line (now any missing border line, B-0017), when the loose pieces' cell count differs from the gap's,
   and when there are gap cells but no loose piece, or a loose piece but no gap.
 - B-0010: `to_puzzle()` gives the board pieces cut out of the grid and the loose pieces from their cell
   lines, in sheet order. `grid` is only for a board with no gaps.
@@ -240,11 +251,14 @@ and asks for JSON matching the same schemas, so everything after the call is unc
   an image item, the prompt and schema for the kind, and the chosen model name; valid JSON gives the same
   sheet text as for Claude; no text, bad JSON and JSON of the wrong shape raise `ValueError`. The CLI
   builds a `GeminiVisionModel` for `--model gemini` and passes `--gemini-model` through (B-0014, B-0015).
+- AT-0014: `scans/puzzling_pets/sheet_claude.txt` (read by Claude Code from the photo, with Darren's
+  frame) passes and gives a module with 5 solutions, listing the one pair of inneys (cell (7, 6) south
+  and bottom tab 6) with no warning. An unsolved sheet without its border lines, or with two touching
+  outeys, is reported. Two inneys touching inside the board are allowed but warned about (B-0016, B-0017).
 - AT-0009: An unsolved sheet made from fixture 1 by taking out one piece (its cells become `.`, and it is
   listed as loose with its cells) parses, and `to_puzzle()` gives a puzzle with the same pieces up to
   rotation, the `PUZZLE` border and the 5 fixture solutions (B-0009, B-0010).
-- AT-0010: Bad unsolved sheets raise `ValueError`: a `-` facing a gap, a gap on the frame with no border
-  line, a loose piece with the wrong number of cells, a gap with no loose piece (B-0009).
+- AT-0010: Bad unsolved sheets raise `ValueError`: a `-` facing a gap, a missing border line, a loose piece with the wrong number of cells, a gap with no loose piece (B-0009).
 - AT-0011: With a fake model, `--unsolved` asks for `SheetKind.UNSOLVED` and writes the module from the
   AT-0009 sheet; a sheet with one flipped tab on the loose piece stops at tab balance. `ClaudeVisionModel`
   turns unsolved JSON into the same sheet text (B-0011).
