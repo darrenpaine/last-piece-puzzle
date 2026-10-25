@@ -1,6 +1,6 @@
 # SPEC-0011: Scan a puzzle from photos
 
-Status: Reviewed (B-0016, B-0017 and AT-0014 added on Darren's go-ahead after the Puzzling Pets read)
+Status: Done
 
 ## Goal
 Add other puzzles in the series without typing every tab by hand. A vision model reads a photo and
