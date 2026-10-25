@@ -1,6 +1,6 @@
 # SPEC-0011: Scan a puzzle from photos
 
-Status: Draft
+Status: Reviewed
 
 ## Goal
 Add other puzzles in the series without typing every tab by hand. A vision model reads a photo and

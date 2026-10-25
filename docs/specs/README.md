@@ -15,4 +15,4 @@ Status: Draft → Reviewed → Done.
 | SPEC-0008 | Parallel search           | 7         | Done   |
 | SPEC-0009 | Fast search engine        | 8         | Done   |
 | SPEC-0010 | DLX exact cover algorithm | 9         | Done   |
-| SPEC-0011 | Scan a puzzle from photos | 10        | Draft  |
+| SPEC-0011 | Scan a puzzle from photos | 10        | Reviewed |
