@@ -14,5 +14,5 @@ Status: Draft → Reviewed → Done.
 | [SPEC-0007](./SPEC-0007-all-solutions.md) | Find all solutions        | 6         | Done   |
 | [SPEC-0008](./SPEC-0008-parallel-search.md) | Parallel search           | 7         | Done   |
 | [SPEC-0009](./SPEC-0009-fast-engine.md) | Fast search engine        | 8         | Done   |
-| [SPEC-0010](./SPEC-0010-dlx-cover-algorithm.md) | DLX exact cover algorithm | 9         | Done   |
+| [SPEC-0010](./SPEC-0010-exact-cover-algorithm.md) | Exact cover algorithm     | 9         | Done   |
 | [SPEC-0011](./SPEC-0011-scan-puzzle.md) | Scan a puzzle from photos | 10        | Done   |

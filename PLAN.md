@@ -61,21 +61,22 @@ Spec: SPEC-0008.
 Done when: it works and is shown to be faster than the step 6 baseline.
 
 8. (Done) Investigate speed-ups. A GPU suits a branching backtracking search poorly, so try algorithm changes first:
-   precompute every orientation of each piece, use bitboards, or treat it as an exact-cover problem (DLX)
+   precompute every orientation of each piece, use bitboards, or treat it as an exact-cover problem (Knuth's Algorithm X)
    with extra tab checks. Try a GPU only if these are not enough.
 Spec: SPEC-0009.
 
-9. (Done) Add a DLX exact cover solver and make it the CLI default (`--method dlx`). The depth-first
+9. (Done) Add an exact cover solver (Algorithm X on bitsets) and make it the CLI default
+   (`--method exactcover`, first named `dlx`). The depth-first
    searches stay as `--method fastsearch` and `--method search`, with their exact move counts and the
    C++ comparison.
 Spec: SPEC-0010.
-Done when: DLX finds the same 5 solutions in the same order, in well under a second.
+Done when: it finds the same 5 solutions in the same order, in well under a second.
 
 10. (Done) Investigate generating a puzzle definition for another puzzle in the series from a photo. AI would
    identify the edges and pieces, and name each piece from the picture on it. This needs approval
    for new dependencies and for an LLM or vision service. Tests use a fake model, with no real calls.
    - A vision model writes a hand-fixable sheet from a photo of the solved puzzle (or of loose pieces);
-     code checks it (touching tabs differ, tab balance, DLX solve) and
+     code checks it (touching tabs differ, tab balance, exact cover solve) and
      writes the puzzle module.
 Spec: SPEC-0011.
 Done when: a fake-model run writes a loadable Golfing Madness module, and a manual trial on the real

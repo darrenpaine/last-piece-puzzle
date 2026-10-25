@@ -42,13 +42,13 @@ uv run last-piece-puzzle --list             # list the puzzles
 ```
 
 It prints each solution as a grid of piece letters, a key to the letters, and a final line such as
-`5 solutions found in 19469 rows chosen, 0.1 s (DLX).`
+`5 solutions found in 19469 rows chosen, 0.1 s (Algorithm X).`
 
-DLX is the default. The two depth-first searches are still there for comparison:
+Exact cover is the default. The two depth-first searches are still there for comparison:
 
 | Option                | What it runs                                                   |
 |-----------------------|----------------------------------------------------------------|
-| `--method dlx`        | Exact cover (default): well under a second                     |
+| `--method exactcover` | Exact cover (default): well under a second                     |
 | `--method fastsearch` | Fast depth-first search: about a second, with all CPU cores    |
 | `--method search`     | The original port of Anton's C++: a few seconds                |
 | `--workers N`         | Processes for the depth-first searches (default: all CPU cores) |

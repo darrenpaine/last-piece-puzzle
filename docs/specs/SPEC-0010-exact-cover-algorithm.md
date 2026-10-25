@@ -1,11 +1,17 @@
-# SPEC-0010: DLX exact cover algorithm
+# SPEC-0010: Exact cover algorithm
 
 Status: Done
 
+Renamed after it was done: this was called DLX, with `--method dlx`, `dlx.py` and `DlxSolver`.
+DLX means Algorithm X run on dancing links, Knuth's circular doubly linked lists that are unlinked to
+cover a column and relinked to backtrack. This solver runs Algorithm X on bitsets instead, so it is now
+`--method exactcover`, `exact_cover.py` and `ExactCoverSolver`, and prints "(Algorithm X)". Ids and
+behaviour are unchanged.
+
 ## Goal
-A second solver that treats the puzzle as an exact cover problem (Knuth's Algorithm X, "Dancing
-Links" / DLX), with an extra rule for tabs. It finds the same solutions as the depth-first search (DFS)
-much faster, and it becomes the CLI default (`--method dlx`). The depth-first searches stay available as
+A second solver that treats the puzzle as an exact cover problem (Knuth's Algorithm X, run on
+bitsets rather than dancing links), with an extra rule for tabs. It finds the same solutions as the depth-first search (DFS)
+much faster, and it becomes the CLI default (`--method exactcover`). The depth-first searches stay available as
 `--method fastsearch` and `--method search` (SPEC-0009), with their exact move counts, C++ mode and workers.
 
 ## How it works
@@ -34,7 +40,7 @@ worked out once, before the search. For Golfing Madness a row clashes with about
 3. Repeat on what is left. When no columns are left, every cell and piece is covered and all tabs fit,
    so it is a solution.
 
-DFS always fills the next empty cell in reading order. DLX works on whatever is most constrained, and it
+DFS always fills the next empty cell in reading order. Algorithm X works on whatever is most constrained, and it
 removes impossible options as soon as they become impossible, so dead ends show up after one or two choices
 instead of many placements later. For Golfing Madness it chooses about 19,500 rows, against about 715,000
 placements for DFS.
@@ -53,30 +59,30 @@ Choosing a row is then one operation, `alive & ~excludes[row]`, and counting a c
 |--------------------------------|---------|----------------------------|
 | DFS now                        | 14.2 s  | 1,430,150 moves            |
 | DFS fast engine (SPEC-0009)    | ~2.5 s  | 1,430,150 moves            |
-| DLX, dict of sets              | 1.48 s  | 19,536 rows chosen         |
-| DLX, bitsets                   | 0.067 s | 19,469 rows chosen         |
-| DLX, bitsets, 10 process tasks | 0.28 s  | (process start-up is slower than the search) |
+| Algorithm X, dict of sets              | 1.48 s  | 19,536 rows chosen         |
+| Algorithm X, bitsets                   | 0.067 s | 19,469 rows chosen         |
+| Algorithm X, bitsets, 10 process tasks | 0.28 s  | (process start-up is slower than the search) |
 
-Both DLX versions found exactly the 5 fixture solutions, each once.
+Both versions found exactly the 5 fixture solutions, each once.
 
 ## Inputs / Outputs
-- New module `src/last_piece_puzzle/dlx.py`. Its module docstring contains the "How it works" explanation above.
+- New module `src/last_piece_puzzle/exact_cover.py`. Its module docstring contains the "How it works" explanation above.
   - `CoverTable(puzzle)`: the rows (piece letter and placement per row), the column bitsets, and each
     row's `excludes` bitset.
-  - `DlxSolver(Solver)`: overrides `solve(start_pieces=None, on_start=None, on_solution=None, workers=None)`
+  - `ExactCoverSolver(Solver)`: overrides `solve(start_pieces=None, on_start=None, on_solution=None, workers=None)`
     and returns the usual `SolveResult`.
-- `solve(puzzle, ..., method=...)` in `solver.py` accepts `"dlx"` as well as SPEC-0009's `"fastsearch"`
+- `solve(puzzle, ..., method=...)` in `solver.py` accepts `"exactcover"` as well as SPEC-0009's `"fastsearch"`
   and `"search"`. The function's default stays `"fastsearch"`, so code and tests that need the exact move
   counts or the C++ comparison get them without asking. `SEARCH_METHODS` names the two depth-first searches.
-- CLI: `--method {dlx,fastsearch,search}`, **default `dlx`**. (Rebased onto SPEC-0009, which added
+- CLI: `--method {exactcover,fastsearch,search}`, **default `exactcover`**. (Rebased onto SPEC-0009, which added
   `fastsearch` and `search`.)
-  - With `dlx`, the final line reads `5 solutions found in 19469 rows chosen, 0.1 s (DLX).`
-    `--workers` and the progress lines for start pieces still work, but DLX runs in one process.
+  - With `exactcover`, the final line reads `5 solutions found in 19469 rows chosen, 0.1 s (Algorithm X).`
+    `--workers` and the progress lines for start pieces still work, but it runs in one process.
   - With `fastsearch` or `search`, the output is as now: `... moves, 1.2 s (22 workers).`
-  - The default is switched to `dlx` in the last commit of this work, after the DLX tests pass.
+  - The default is switched to `exactcover` in the last commit of this work, after its tests pass.
 
 ## Behaviour
-- B-0001: `DlxSolver` finds every distinct solution once. A placement reached from different anchors or
+- B-0001: `ExactCoverSolver` finds every distinct solution once. A placement reached from different anchors or
   rotations is one row, so there are no repeats: `times_found == 1`, and `boards_found` equals the number
   of solutions.
 - B-0002: Solutions are returned, and passed to `on_solution`, in the same order as DFS. They are sorted
@@ -86,24 +92,24 @@ Both DLX versions found exactly the 5 fixture solutions, each once.
   far when that solution was found. They are not comparable with DFS move counts.
 - B-0004: `start_pieces` keeps only rows of those pieces among the rows covering cell (0, 0).
   `on_start` is called once for each allowed start piece, in search order, before the search.
-- B-0005: `all_rotations` makes no difference (rows are distinct placements). `workers` is ignored, so DLX
+- B-0005: `all_rotations` makes no difference (rows are distinct placements). `workers` is ignored, so it
   runs in one process.
 
 ## Acceptance tests
-- AT-0001: For Golfing Madness, `solve(PUZZLE, method="dlx")` gives the 5 fixture grids in fixture order,
+- AT-0001: For Golfing Madness, `solve(PUZZLE, method="exactcover")` gives the 5 fixture grids in fixture order,
   start pieces E, E, C, C, A, `times_found == 1` and `boards_found == 5`. It runs in CI (well under 1 s)
   (B-0001, B-0002).
 - AT-0002: With `start_pieces=["E"]`, it gives fixtures `_1` and `_2`. With `["M"]`, there are none (B-0004).
-- AT-0003: For the small test puzzles (one cell, two solutions, no solution, symmetric domino), the DLX grids
+- AT-0003: For the small test puzzles (one cell, two solutions, no solution, symmetric domino), the exact cover grids
   equal the DFS grids, in the same order (B-0001, B-0002).
 - AT-0004: `CoverTable`: Golfing Madness has 1,419 rows. Each row marks its cells and its piece. A row's
   `excludes` contains every row that overlaps it or uses the same piece, plus the rows that clash on tabs,
   and not a row that sits next to it with fitting tabs. Checked on a hand-picked pair from fixture `_1`.
-- AT-0005: With `solve` stubbed, `main(["golfing_madness"])` and `main(["golfing_madness", "--method", "dlx"])`
-  pass `method="dlx"` and print the DLX final line. `main(["golfing_madness", "--method", "search"])` passes
+- AT-0005: With `solve` stubbed, `main(["golfing_madness"])` and `main(["golfing_madness", "--method", "exactcover"])`
+  pass `method="exactcover"` and print the exact cover final line. `main(["golfing_madness", "--method", "search"])` passes
   `method="search"` and prints the moves and workers line. An unknown method exits with status 2.
 - AT-0006: `solve(PUZZLE)` with no `method` still uses a depth-first search (`fastsearch`): the existing
   move-count tests pass unchanged.
 
 ## Out of scope
-- Running DLX in parallel (not needed at this speed).
+- Running it in parallel (not needed at this speed).
