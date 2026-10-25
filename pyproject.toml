@@ -16,6 +16,7 @@ last-piece-scan = "last_piece_puzzle.scan:main"
 [project.optional-dependencies]
 scan = [
     "anthropic>=2.3.0",
+    "google-genai>=2.33.0",
 ]
 
 [build-system]
@@ -34,6 +35,10 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--strict-markers", "-p", "pytester"]
+filterwarnings = [
+    # google-genai on Python 3.14; not ours to fix
+    "ignore:'_UnionGenericAlias' is deprecated:DeprecationWarning:google.genai.types",
+]
 markers = [
     "spec(spec_id, *item_ids): links a test to spec ids, e.g. spec(\"SPEC-0001\", \"AT-0001\")",
     "slow: long-running test; CI skips it with -m \"not slow\"",
