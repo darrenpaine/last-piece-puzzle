@@ -132,6 +132,8 @@ pieces in the module.
   puzzle that can be solved. For a piece sheet the scanner stops and reports it if it isn't 0.
 - B-0005: The scanner runs the checks for the sheet's kind and writes the module only when all pass,
   else it reports the first failure and keeps the sheet for fixing.
+  It never overwrites `sheet.txt` (it may have hand fixes): with photos and an existing sheet it stops
+  and suggests `--sheet`. It checks for an existing module before calling the model (added while coding).
 - B-0006: `write_module` produces a module that `puzzles.load(key)` loads to an equal `Puzzle`, that
   passes Ruff and mypy, and that uses the `IN, OUT, NONE` names like `golfing_madness_puzzle.py`.
 - B-0007: The model is only reached through `VisionModel`. Tests pass a fake that returns fixed sheet
