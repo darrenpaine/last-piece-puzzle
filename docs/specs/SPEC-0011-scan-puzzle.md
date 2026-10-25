@@ -280,8 +280,8 @@ What it shows:
 - **The tabs were mostly inferred, not read.** The subagent said it could not read the inside tabs at
   this resolution, so it assumed a checkerboard (cells where row + column is even are all outeys), which
   matched the frame. That guess is almost right: in Golfing Madness only **1** tabbed side breaks the
-  checkerboard, the deliberate break at the bottom right. The subagent missed it and put a break in the
-  wrong place.
+  checkerboard, the deliberate break at the bottom right (cell (7, 6) south, frame bottom tab 6). The
+  subagent found that break but added a false one next to it (cell (7, 7) south, frame bottom tab 7).
 - **The checks didn't notice.** A checkerboard always passes the edge check, and a solved photo always
   solves. But the puzzle came out far too easy: 1,614 solutions instead of 5. The deliberate break is
   what makes the puzzle hard, so a large solution count is a strong sign the break was misread.
@@ -294,7 +294,7 @@ Follow-ups:
   series has only a few solutions, so some tab, probably a break in the pattern, is likely misread.
 - AT-0012: For the AT-0001 sheet, the report lists the one Golfing Madness break (bottom right) and
   there's no warning. For the trial sheet (`scans/golfing_madness_scan/sheet.txt`, committed as the
-  record) it lists the wrong break and warns about 1,614 solutions.
+  record) it lists the real break and the false one, and warns about 1,614 solutions.
 
 ## Out of scope
 - Finding piece outlines with classic image processing (OpenCV and so on).
