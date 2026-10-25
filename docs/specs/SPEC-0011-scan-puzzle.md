@@ -55,8 +55,8 @@ must find the photographed board among the solutions. That checks the conversion
 puzzle built from a solved photo always has that solution. So the CLI also prints the number of
 solutions; the puzzles in this series have only a few.
 
-### 2. Piece sheet: photos of loose pieces (later)
-For a puzzle we only have in pieces: all pieces picture side up, spread out, plus the empty frame.
+### 2. Piece sheet: photos of loose pieces (Puzzling Pets, Flight of Fancy)
+For a puzzle we only have photos of in pieces, as for the next two, Puzzling Pets and Flight of Fancy: all pieces picture side up, spread out, plus the empty frame.
 The model lists each piece's cells and tabs.
 
 ```
@@ -164,7 +164,8 @@ Run the real model on the photo of the solved Golfing Madness, where the answer 
 - The cost of the call.
 
 This decides whether the approach is good enough, and how much hand fixing to expect, before scanning
-a puzzle we don't have data for.
+Puzzling Pets and Flight of Fancy from their photos of loose pieces. For those there is no known answer,
+so the checks are tab balance and at least one solution.
 
 ## Out of scope
 - Finding piece outlines with classic image processing (OpenCV and so on).
@@ -174,5 +175,6 @@ a puzzle we don't have data for.
 ## Open questions
 1. Does the frame show in the solved photo (its tabs give check 4)? Can you put the photo in
    `scans/golfing_madness/` so I can look at how readable the tabs are before code is written?
-2. Which puzzle should be scanned after Golfing Madness, and is it solved or in pieces?
+2. For Puzzling Pets and Flight of Fancy: does the frame show in the photos of the pieces? Without it
+   the border has to come from somewhere else (typed by hand, or another photo).
 3. OK to add `anthropic` as an optional `scan` extra, and `pillow` later only if photos are too big?
