@@ -23,7 +23,11 @@ There are two kinds of photo, each with its own sheet.
 
 ### 1. Solved sheet: a photo of the solved puzzle (first)
 The pieces sit in the frame, touching, as in a finished puzzle. This is the only photo we have of
-Golfing Madness. The model reads the board cell by cell: which piece covers each cell (from the cut
+Golfing Madness: Anton's `photo_of_puzzle.JPG` (from his repo, saved in `scans/golfing_madness/`).
+It is 640×480, the cut lines are faint green on green, and the frame shows. The box above the board has
+a "last piece" cut-out that is not part of the board; the prompt tells the model to ignore it.
+The file is stored sideways with an EXIF orientation tag, so the board may be read rotated. That still
+gives a valid puzzle (its solutions are rotated too). The model reads the board cell by cell: which piece covers each cell (from the cut
 lines and the pictures), and the tab on each side of each cell, as it lies on the board.
 
 ```
@@ -108,10 +112,11 @@ pieces in the module.
     and prints the number of solutions. It won't overwrite an existing module unless given `--force`.
 - Folder `scans/KEY/`: the photos and sheets. Photos are git-ignored; sheets are committed.
 
-## Dependencies (need approval)
-- `anthropic` (Claude Python SDK) as an optional extra: `uv add --optional scan anthropic`. The solver
+## Dependencies
+- `anthropic` (Claude Python SDK) as an optional extra: `uv add --optional scan anthropic` (approved). The solver
   keeps no runtime dependencies. `scan.py` imports `anthropic` only inside `ClaudeVisionModel`.
-- Possibly `pillow`, to shrink phone photos under the API's image size limit. Left out unless needed.
+- Possibly `pillow`, to shrink big phone photos or apply the EXIF rotation. Left out unless needed;
+  it would need approval.
 
 ## Behaviour
 - B-0001: `parse_solved_sheet` reads the solved sheet. It raises `ValueError` naming the line or cell
@@ -159,7 +164,8 @@ pieces in the module.
 ## Trial (manual, not CI)
 Run the real model on the photo of the solved Golfing Madness, where the answer is known:
 - How many cells got the right piece: compare the letter grid with the fixture solutions, allowing for
-  different letters (the frame is not symmetric, so the photo should match one fixture exactly).
+  different letters and for the board being read rotated (the frame is not symmetric, so the photo
+  should match one fixture exactly once turned the right way).
 - How many edges clash (check 3), and after `to_puzzle()`, how many pieces and border tabs equal `PUZZLE`.
 - The cost of the call.
 
@@ -172,9 +178,7 @@ so the checks are tab balance and at least one solution.
 - A UI for fixing sheets. A text editor and `--sheet` are enough.
 - Boards that are not rectangles, or pieces that can be flipped.
 
-## Open questions
-1. Does the frame show in the solved photo (its tabs give check 4)? Can you put the photo in
-   `scans/golfing_madness/` so I can look at how readable the tabs are before code is written?
-2. For Puzzling Pets and Flight of Fancy: does the frame show in the photos of the pieces? Without it
-   the border has to come from somewhere else (typed by hand, or another photo).
-3. OK to add `anthropic` as an optional `scan` extra, and `pillow` later only if photos are too big?
+## Decisions
+- The Golfing Madness photo is Anton's `photo_of_puzzle.JPG`, with the frame showing.
+- Puzzling Pets and Flight of Fancy are next, from photos of loose pieces with the frame showing.
+- `anthropic` is approved as an optional `scan` extra.
