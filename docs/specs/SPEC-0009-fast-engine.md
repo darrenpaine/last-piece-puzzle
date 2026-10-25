@@ -29,7 +29,7 @@ With plain ints (small ints are never reference-counted in 3.14), threads now sc
 build, but processes are still a little faster and work on the standard build. **Processes stay.**
 
 ### Not tried
-- **Exact cover (DLX):** tried afterwards in `build/` (about 0.07 s single process with bitsets). It searches in
+- **Exact cover (Algorithm X):** tried afterwards in `build/` (about 0.07 s single process with bitsets). It searches in
   a different order, so the move counts and the C++ comparison do not hold. It is specified separately as
   an alternative solver in SPEC-0010; this spec keeps the depth-first search.
 - **GPU:** a branching backtracking search with few, small, uneven subtrees suits a GPU poorly, and it
@@ -57,7 +57,7 @@ build, but processes are still a little faster and work on the standard build. *
   - `parallel.py` workers build the same solver class as the caller and run each task with it
     (`Engine.run_path` for `FastSolver`, the board prefix replay for `Solver`).
   - CLI: `--method {fastsearch,search}`, default `fastsearch`. The output is the same for both.
-    (SPEC-0010 adds `dlx` and makes it the CLI default.)
+    (SPEC-0010 adds `exactcover`, first named `dlx`, and makes it the CLI default.)
 - `Board`, `Piece.placements` etc. stay as they are; `Board.from_grid` and `check_solution` still use them.
 
 ## Behaviour
@@ -85,5 +85,5 @@ build, but processes are still a little faster and work on the standard build. *
   `solve` (stubbed), and an unknown method exits with status 2.
 
 ## Out of scope
-- Pruning, DLX and GPU (above).
+- Pruning, exact cover and GPU (above).
 - A thread option for the free-threaded build.

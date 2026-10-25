@@ -54,7 +54,7 @@ Checks, each naming the cells or line at fault:
 5. `Puzzle(...)` accepts the result (SPEC-0006: connected pieces, cell count, …).
 
 Then each piece is cut out of the grid: its cells as offsets from its first cell in reading order, with
-their tabs as they lie in the photo (rotation doesn't matter, the solver tries all four). DLX (SPEC-0010)
+their tabs as they lie in the photo (rotation doesn't matter, the solver tries all four). The exact cover solver (SPEC-0010)
 must find the photographed board among the solutions. That checks the conversion, not the reading: a
 puzzle built from a solved photo always has that solution. So the CLI also prints the number of
 solutions; the puzzles in this series have only a few.
@@ -82,7 +82,7 @@ Here no edge is seen twice, so the checks are:
 2. **Tab balance.** Every inside edge pairs one outey with one inney, and every border edge pairs a
    piece tab with the opposite border tab. So `piece outeys − piece inneys = border inneys − border outeys`
    (Golfing Madness: 2 = 2). One misread tab changes the left side by 2.
-3. **Solve** with DLX. At least one solution means the sheet is very likely right.
+3. **Solve** with the exact cover solver. At least one solution means the sheet is very likely right.
 
 The piece sheet is also the format the scanner saves after a solved sheet passes, as the record of the
 pieces in the module.
@@ -126,7 +126,7 @@ Checks:
 5. `Puzzle(...)` accepts the result, with the board pieces cut out of the grid and the loose pieces
    taken from their cell lines.
 6. **Tab balance**, as for a piece sheet: the loose piece and the sides around the gap are read only once.
-7. **Solve** with DLX. Unlike a solved photo, this is a real check: the puzzle must have a solution,
+7. **Solve** with the exact cover solver. Unlike a solved photo, this is a real check: the puzzle must have a solution,
    and the photographed layout is not one.
 
 ### 4. The model call
@@ -192,7 +192,7 @@ and asks for JSON matching the same schemas, so everything after the call is unc
   and a given border tab equal to the edge cell's tab next to it.
 - B-0002: `SolvedBoard.to_puzzle()` cuts each piece out of the grid (offsets from its first cell in
   reading order, tabs as in the photo). The border comes from the border lines or, if absent, opposite
-  the edge cells' outer tabs. DLX on that puzzle finds `SolvedBoard.grid` among its solutions.
+  the edge cells' outer tabs. Exact cover on that puzzle finds `SolvedBoard.grid` among its solutions.
 - B-0003: `parse_piece_sheet` reads the piece sheet into a `Puzzle`; bad lines raise `ValueError` with the
   line number. `format_piece_sheet` writes it back, and the two round-trip.
 - B-0004: `tab_balance` returns `piece outeys − piece inneys − (border inneys − border outeys)`, 0 for a
@@ -224,14 +224,14 @@ and asks for JSON matching the same schemas, so everything after the call is unc
   and when there are gap cells but no loose piece, or a loose piece but no gap.
 - B-0010: `to_puzzle()` gives the board pieces cut out of the grid and the loose pieces from their cell
   lines, in sheet order. `grid` is only for a board with no gaps.
-- B-0011: For an unsolved sheet the scanner checks tab balance, then needs at least one DLX solution.
+- B-0011: For an unsolved sheet the scanner checks tab balance, then needs at least one exact cover solution.
   `--unsolved` asks the model for an unsolved sheet: gap cells and the loose piece with its cells.
 
 ## Acceptance tests
 - AT-0001: A solved sheet made from fixture `golfing_madness_solution_1` and `PUZZLE` (a test helper
   writes it) parses, and `to_puzzle()` gives the 14 Golfing Madness pieces, each equal to the
   `PUZZLE` piece up to rotation and offset, and the `PUZZLE` border, with and without border lines.
-  DLX finds the 5 fixture solutions (B-0001, B-0002).
+  Exact cover finds the 5 fixture solutions (B-0001, B-0002).
 - AT-0002: Each bad solved sheet in B-0001 raises `ValueError` naming its cell or line. In particular,
   flipping one tab on one side of an inside edge is reported at that pair of cells (B-0001).
 - AT-0003: `parse_piece_sheet(format_piece_sheet(PUZZLE)) == PUZZLE` for Golfing Madness and the small
@@ -287,7 +287,7 @@ the API call would not get. Compared with fixture 1 (the board in the photo):
 | Frame tabs right           | 31 / 32 (missed bottom column 7)    |
 | Edge clashes flagged       | 0                                   |
 | Scanner checks             | all passed                          |
-| DLX solutions              | 1,614 (the real puzzle has 5)       |
+| Solutions                  | 1,614 (the real puzzle has 5)       |
 
 What it shows:
 - **Piece outlines read well**; the two wrong cells came from one split piece.

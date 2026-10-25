@@ -46,7 +46,7 @@ def test_solve_puzzle_sends_everything_to_output(monkeypatch: pytest.MonkeyPatch
         workers: int,
         method: Method,
     ) -> SolveResult:
-        assert method == "dlx"
+        assert method == "exactcover"
         on_start("B")
         on_start("A")
         on_solution(1, FOUND)
@@ -54,13 +54,13 @@ def test_solve_puzzle_sends_everything_to_output(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(solver, "solve", fake_solve)
     output = RecordingOutput()
-    solve_puzzle(PUZZLE, workers=3, output=output, method="dlx")
+    solve_puzzle(PUZZLE, workers=3, output=output, method="exactcover")
     assert output.calls == [
         ("header", "Golfing Madness"),
         ("start", "B"),
         ("start", "A"),
         ("solution", 1, FOUND),
-        ("finish", "Golfing Madness", RESULT, 3, "dlx"),
+        ("finish", "Golfing Madness", RESULT, 3, "exactcover"),
     ]
 
 

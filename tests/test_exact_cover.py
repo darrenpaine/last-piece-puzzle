@@ -6,7 +6,7 @@ from test_parallel import SMALL_PUZZLES
 
 from last_piece_puzzle import main, solver
 from last_piece_puzzle.board import Board
-from last_piece_puzzle.dlx import CoverTable, DlxSolver, bits
+from last_piece_puzzle.exact_cover import CoverTable, ExactCoverSolver, bits
 from last_piece_puzzle.puzzle import Puzzle
 from last_piece_puzzle.puzzles.golfing_madness_puzzle import PUZZLE
 from last_piece_puzzle.solution import Solution, load_solution
@@ -26,7 +26,9 @@ def grids(result: SolveResult) -> list[tuple[str, ...]]:
 @pytest.mark.spec("SPEC-0010", "AT-0001")
 def test_golfing_madness_gives_fixtures_in_order() -> None:
     numbered: list[tuple[int, FoundSolution]] = []
-    result = solver.solve(PUZZLE, on_solution=lambda n, f: numbered.append((n, f)), method="dlx")
+    result = solver.solve(
+        PUZZLE, on_solution=lambda n, f: numbered.append((n, f)), method="exactcover"
+    )
     assert grids(result) == GRIDS
     assert [found.start_piece for found in result.solutions] == list("EECCA")
     assert all(found.times_found == 1 for found in result.solutions)
@@ -36,7 +38,7 @@ def test_golfing_madness_gives_fixtures_in_order() -> None:
 
 @pytest.mark.spec("SPEC-0010", "AT-0001")
 def test_moves_count_rows_chosen() -> None:
-    result = DlxSolver(PUZZLE).solve()
+    result = ExactCoverSolver(PUZZLE).solve()
     assert result.moves == 19469
     assert all(0 < found.found_at_move <= result.moves for found in result.solutions)
 
@@ -45,7 +47,7 @@ def test_moves_count_rows_chosen() -> None:
 @pytest.mark.parametrize(("start", "expected"), [("E", GRIDS[:2]), ("M", [])])
 def test_start_pieces(start: str, expected: list[tuple[str, ...]]) -> None:
     started: list[str] = []
-    result = solver.solve(PUZZLE, [start], on_start=started.append, method="dlx")
+    result = solver.solve(PUZZLE, [start], on_start=started.append, method="exactcover")
     assert grids(result) == expected
     assert started == [start]
 
@@ -57,12 +59,14 @@ def test_small_puzzles_match_search(key: str, all_rotations: bool) -> None:
     puzzle: Puzzle = SMALL_PUZZLES[key]
     started: list[str] = []
     dfs_started: list[str] = []
-    dlx = solver.solve(puzzle, on_start=started.append, all_rotations=all_rotations, method="dlx")
+    cover = solver.solve(
+        puzzle, on_start=started.append, all_rotations=all_rotations, method="exactcover"
+    )
     dfs = solver.solve(puzzle, on_start=dfs_started.append)
-    assert grids(dlx) == grids(dfs)
-    assert [f.start_piece for f in dlx.solutions] == [f.start_piece for f in dfs.solutions]
+    assert grids(cover) == grids(dfs)
+    assert [f.start_piece for f in cover.solutions] == [f.start_piece for f in dfs.solutions]
     assert started == dfs_started
-    assert dlx.boards_found == len(dlx.solutions)
+    assert cover.boards_found == len(cover.solutions)
 
 
 @pytest.mark.spec("SPEC-0010", "AT-0004")
@@ -117,10 +121,12 @@ def test_cover_table_excludes() -> None:
 def test_solve_defaults_to_fastsearch() -> None:
     result = solver.solve(SMALL_PUZZLES["two-solutions"])
     assert result.moves == 8  # the depth-first search counts every place and remove
-    assert solver.solve(SMALL_PUZZLES["two-solutions"], method="dlx").moves == 4  # rows chosen
+    assert (
+        solver.solve(SMALL_PUZZLES["two-solutions"], method="exactcover").moves == 4
+    )  # rows chosen
 
 
-DLX_LINE = r"1 solution found in 7 rows chosen, \d+\.\d s \(DLX\)\."
+COVER_LINE = r"1 solution found in 7 rows chosen, \d+\.\d s \(Algorithm X\)\."
 SEARCH_LINE = r"1 solution found in 7 moves, \d+\.\d s \(\d+ workers?\)\."
 
 
@@ -141,8 +147,8 @@ def methods(monkeypatch: pytest.MonkeyPatch) -> list[object]:
 @pytest.mark.parametrize(
     ("argv", "method", "last_line"),
     [
-        ([], "dlx", DLX_LINE),
-        (["--method", "dlx"], "dlx", DLX_LINE),
+        ([], "exactcover", COVER_LINE),
+        (["--method", "exactcover"], "exactcover", COVER_LINE),
         (["--method", "search"], "search", SEARCH_LINE),
     ],
 )
@@ -159,21 +165,22 @@ def test_cli_method(
 
 
 @pytest.mark.spec("SPEC-0010", "AT-0005")
-def test_cli_dlx_no_solutions_line(
+def test_cli_exactcover_no_solutions_line(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(solver, "solve", lambda *args, **kwargs: SolveResult((), 0, 3))
-    main(["golfing_madness", "--method", "dlx"])
+    main(["golfing_madness", "--method", "exactcover"])
     last = capsys.readouterr().out.splitlines()[-1]
-    assert re.fullmatch(r"No solutions found in 3 rows chosen, \d+\.\d s \(DLX\)\.", last)
+    assert re.fullmatch(r"No solutions found in 3 rows chosen, \d+\.\d s \(Algorithm X\)\.", last)
 
 
 @pytest.mark.spec("SPEC-0010", "AT-0005")
+@pytest.mark.parametrize("method", ["nope", "dlx"])  # "dlx" was this method's old, wrong name
 def test_cli_unknown_method_exits_2(
-    methods: list[object], capsys: pytest.CaptureFixture[str]
+    methods: list[object], capsys: pytest.CaptureFixture[str], method: str
 ) -> None:
     with pytest.raises(SystemExit) as exit_info:
-        main(["golfing_madness", "--method", "nope"])
+        main(["golfing_madness", "--method", method])
     assert exit_info.value.code == 2
     assert "invalid choice" in capsys.readouterr().err
     assert methods == []

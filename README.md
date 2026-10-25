@@ -1,31 +1,113 @@
-## Last Piece Puzzle Solver
+# Last Piece Puzzle Solver
 
-As a Christmas present, many years ago, I received "Puzzling Pets" - a "Last Piece Puzzle", which required re-arranging the puzzle pieces to fit in the grid. It proved fiendishly difficult to solve. Friends, neighbours and acquaintances tried, but none of us could solve it.
+**Solving a frustrating puzzle in two ways:**
+- **a brute-force algorithm**
+- **a faster way using Exact Cover/'Algorithm X'**
 
-An algorithm to solve a series called "Last Piece Puzzle" created by Dugald
-Keith in the 1990s and sold by Blue Opal. Indiana University has [archived photos of all the puzzles](https://digitalcollections.iu.edu/collections/p2678p93x?utf8=%E2%9C%93&cq=last+piece&sort=&locale=en).
+See the [specs](./docs/specs/README.md) for the plan and tests.
+Includes a scanner to read in and solve other puzzles in the series.
 
-As I suspected, I was not the only one to be frustrated by these puzzles, and I
-found a *brute-force* [algorithm by Anton](https://github.com/capnramses/golfing_madness_puzzle_solver) for the "Golfing Madness" puzzle in the series using a depth-first search which tries to place each piece and backtracks if it gets stuck. I converted the
-algorithm to Python, and all credit for this brute-force algorithm goes to him. I made a few small improvements, including finding all solutions. See below for details.
+![CI Status](https://github.com/darrenpaine/last-piece-puzzle/actions/workflows/ci.yml/badge.svg)
 
-Then I tried an alternative algorithm based on the [Exact Cover 'Algorithm X'](https://en.wikipedia.org/wiki/Exact_cover) by Donald Knuth, which is
-often used to solve puzzles such as Sudoku. Instead of the Knuth's '[dancing links](http://arxiv.org/pdf/cs/0011047)' pointers, I used bitsets (for speed) and added constraints coming from the tabs on puzzle pieces. This new algorithm proved to be an efficient and fast way to solve the puzzle.
 
-Finally, I used Claude to help write a way to scan other last piece puzzles in to be solved.
+## Impossible?
+As a Christmas present, many years ago, I received *"Puzzling Pets"* - a *"Last Piece Puzzle"*.
+The puzzle appears to be simple - just rearrange the pieces to fit. However it proved fiendishly difficult to solve.
+Christmases came and went. Family, friends and neighbours struggled.
 
-I recorded the design and decisions made in each step in the docs/specs folder. See the detailed [SPECS](./docs/specs/README.md) there. Each spec also details the expected behaviour and the linked tests implemented in the [tests](./tests/) folder.
+*Not one of us could solve it.*
 
-### Anton's Brute-Force Algorithm: Conversion and improvements
+![puzzling pets](./docs/puzzling_pets.png)
 
-### New Algorithm: Extended 'Exact Cover' algorithm using bitsets
-DLX
+Dugald Keith created a series of these in the 1990s and they were sold by Blue Opal. Indiana University has [archived photos of all the series](https://digitalcollections.iu.edu/collections/p2678p93x?utf8=%E2%9C%93&cq=last+piece&sort=&locale=en).
 
-### Experimental scan for new puzzles
-I worked with Claude to create a way to scan in other puzzles in the series, so that the solver can be run on them.
 
-### Set up and run the solver
-You need Python 3.14 and [uv](https://docs.astral.sh/uv/). uv installs everything else.
+## The first solution - Anton's algorithm
+As I suspected, I was not the only one to be frustrated by these puzzles. Eventually,
+I came across [a *brute-force* algorithm in C++ by Anton Gerdelan](https://github.com/capnramses/golfing_madness_puzzle_solver). He had had a similar experience with the "Golfing Madness" puzzle in the same series. Thanks to Anton, I finally finished the puzzle. I converted the algorithm to Python, and made a few small improvements, including finding all solutions. See below for details. *All credit for this algorithm goes to Anton.*
+
+Anton's C++ solver ([`cpp/main.cpp`](./cpp/main.cpp), kept unchanged here) is a depth-first search.
+It finds the first empty cell in reading order and tries each unused piece there, in each of its
+4 rotations, with each of its cells as the one that sits in the gap. A piece fits if it stays on the
+board, doesn't overlap another piece, and each of its tabs is the opposite of the tab it touches, on
+a neighbour or on the frame. If nothing fits, it takes the last piece back out and tries the next
+option.
+
+I made these changes, one step at a time, each with its own spec and tests:
+
+1. **Recorded the C++ answer.** I built and ran Anton's code and saved its solution as a test fixture,
+   with its move count (1,529,410) and time (about 1.2 s). Every later step is checked against it
+   ([SPEC-0002](./docs/specs/SPEC-0002-record-cpp-solution.md)).
+2. **Converted it to Python.** The pointers became immutable dataclasses and a tab `Enum`. The search
+   tries the pieces in the same order (N to A) and finds the same first solution at exactly the same
+   move ([SPEC-0003](./docs/specs/SPEC-0003-python-port.md),
+   [SPEC-0004](./docs/specs/SPEC-0004-solution-and-fit-tests.md)).
+3. **Split it into classes:** `Piece`, `PieceSet`, `Board` and `Solver`, with no change to the search
+   ([SPEC-0005](./docs/specs/SPEC-0005-object-model.md)).
+4. **Made the puzzle an input.** Each puzzle is now a module in `src/last_piece_puzzle/puzzles/`, checked
+   when it loads, so the solver can take any puzzle in the series
+   ([SPEC-0006](./docs/specs/SPEC-0006-puzzle-definitions.md)).
+5. **Found all the solutions.** The C++ stops at the first solution. The Python search carries on and
+   finds all 5. Some pieces look the same after a half turn, tabs included (D and H, for example). These
+   now try only their different rotations, so each solution is found once, not 4 times
+   ([SPEC-0007](./docs/specs/SPEC-0007-all-solutions.md)).
+6. **Ran it on all CPU cores.** The search is split into a few thousand small tasks, one for each
+   way to place the first pieces, and run in separate processes. On 22 cores this took the full search
+   from 14.2 s to about 2.2 s ([SPEC-0008](./docs/specs/SPEC-0008-parallel-search.md)).
+7. **Made each step faster** (`--method fastsearch`). Before the search starts, it works out which
+   placements fit on the board and against the frame at each cell. During the search, it only checks
+   overlap (one AND on a 64-bit mask) and the neighbours' tabs, held as small ints. It tries the same
+   placements in the same order, so every move count is unchanged
+   ([SPEC-0009](./docs/specs/SPEC-0009-fast-engine.md)).
+
+All 5 Golfing Madness solutions take 1,430,150 moves, in about 1.2 s on 22 cores with
+`--method fastsearch`. The original port is still there as `--method search`, and the tests check both
+against the C++ answer.
+
+
+## A New Algorithm: Extended 'Exact Cover' algorithm using bitsets
+The depth-first search always fills the next empty cell in reading order, whatever the cost. It
+can place many pieces before it finds out that an earlier choice made the puzzle impossible.
+Exact cover turns this round: it always works on the cell or piece with the fewest options left.
+
+- **The puzzle as a table.** An exact cover problem is a table of yes/no marks. The aim is to choose
+rows so that every column is marked exactly once. Here there is one column for each board cell (64)
+and one for each piece (14). There is one row for each way a piece can sit on the board: each
+rotation, at each position where it stays on the board and its tabs fit the frame. A row marks the
+cells it covers and its own piece. Choosing rows that mark every column once fills every cell once
+and uses every piece once. Golfing Madness has 1,419 rows.
+
+- **Adding the tabs.** Plain exact cover knows nothing about tabs. So, before the search starts, each
+row gets a list of the rows that clash with it: placements that would touch it with an outey against
+an outey, or an inney against an inney.
+
+- **The search (Algorithm X).** Pick the column with the fewest rows left. If it has none, this choice
+was a dead end, so go back. Otherwise try each of its rows in turn. Choosing a row removes every row
+that overlaps it, reuses its piece, or clashes with its tabs. Repeat on what is left. When no columns
+are left, every cell and piece is covered and every tab fits, so it is a solution.
+
+- **Bitsets, not dancing links.** Knuth runs Algorithm X with
+'[dancing links](http://arxiv.org/pdf/cs/0011047)': circular doubly linked lists, where choosing a row
+unlinks nodes and going back relinks them. The table here is small, so instead each set of rows is a
+Python int used as a bitset (bit *i* is row *i*). Choosing a row is one AND of two ints, and counting
+a column's rows left is one `bit_count()`. Both run in C, not Python. Going back costs nothing: the
+set of rows still possible is a plain int, so each step keeps its own copy.
+
+**The result.** For Golfing Madness, all 5 solutions are found after choosing 19,469 rows, against
+about 715,000 pieces placed by the depth-first search:
+
+| Method                | Steps                        | Time (all 5 solutions)     |
+|-----------------------|------------------------------|----------------------------|
+| `--method search`     | 1,430,150 places and removes | 2.8 s, on 22 cores         |
+| `--method fastsearch` | 1,430,150 places and removes | 1.2 s, on 22 cores         |
+| `--method exactcover` | 19,469 rows chosen           | 0.1 s, on one core         |
+
+The design and tests are in [SPEC-0010](./docs/specs/SPEC-0010-exact-cover-algorithm.md), and the
+code is in [`exact_cover.py`](./src/last_piece_puzzle/exact_cover.py).
+
+
+## Setting up and running the solver
+You need Python 3.14 (may work on other versions) and [uv](https://docs.astral.sh/uv/). uv installs everything else.
 
 ```
 git clone https://github.com/darrenpaine/last-piece-puzzle.git
@@ -42,13 +124,13 @@ uv run last-piece-puzzle --list             # list the puzzles
 ```
 
 It prints each solution as a grid of piece letters, a key to the letters, and a final line such as
-`5 solutions found in 19469 rows chosen, 0.1 s (DLX).`
+`5 solutions found in 19469 rows chosen, 0.1 s (Algorithm X).`
 
-DLX is the default. The two depth-first searches are still there for comparison:
+Exact cover is the default. The two depth-first searches are still there for comparison:
 
 | Option                | What it runs                                                   |
 |-----------------------|----------------------------------------------------------------|
-| `--method dlx`        | Exact cover (default): well under a second                     |
+| `--method exactcover` | Exact cover (default): well under a second                     |
 | `--method fastsearch` | Fast depth-first search: about a second, with all CPU cores    |
 | `--method search`     | The original port of Anton's C++: a few seconds                |
 | `--workers N`         | Processes for the depth-first searches (default: all CPU cores) |
@@ -56,7 +138,8 @@ DLX is the default. The two depth-first searches are still there for comparison:
 Each puzzle is a module in `src/last_piece_puzzle/puzzles/` named `<key>_puzzle.py`. Add a file
 there and the solver picks it up.
 
-### Running the scanner and creating a puzzle
+
+## Running the scanner and creating a puzzle to solve
 The scanner turns a photo of a puzzle into a puzzle module. A vision model, Claude or Gemini, reads
 the photo and writes a **sheet**: a short text file that lists the frame's tabs, and the cells, tabs
 and picture of each piece. The scanner checks the sheet, solves it, and only then writes the module.
@@ -118,3 +201,7 @@ The checks:
 You can also skip the model and write a sheet by hand. `scans/puzzling_pets/sheet_claude.txt` is an
 example.
 
+
+## The process - specification, testing, linting, type checks
+
+See the detailed [SPECS](./docs/specs/README.md). Each spec also details the expected behaviour and the linked tests implemented in the [tests](./tests/) folder. I added a github workflow and a pre-commit check to make sure all tests were run, coverage was good, lint was clean and mypy ran strict checking on all types.
