@@ -1,6 +1,6 @@
 # SPEC-0011: Scan a puzzle from photos
 
-Status: Reviewed
+Status: Reviewed; the unsolved sheet (section 3, B-0009..B-0011, AT-0009..AT-0011) is in review
 
 ## Goal
 Add other puzzles in the series without typing every tab by hand. A vision model reads a photo and
@@ -19,7 +19,7 @@ photo ──(vision model)──> sheet.txt ──(parse, check, build Puzzle, s
                              └───┘  fix by hand, run again with --sheet
 ```
 
-There are two kinds of photo, each with its own sheet.
+There are three kinds of photo, each with its own sheet.
 
 ### 1. Solved sheet: a photo of the solved puzzle (first)
 The pieces sit in the frame, touching, as in a finished puzzle. This is the only photo we have of
@@ -59,8 +59,9 @@ must find the photographed board among the solutions. That checks the conversion
 puzzle built from a solved photo always has that solution. So the CLI also prints the number of
 solutions; the puzzles in this series have only a few.
 
-### 2. Piece sheet: photos of loose pieces (Puzzling Pets, Flight of Fancy)
-For a puzzle we only have photos of in pieces, as for the next two, Puzzling Pets and Flight of Fancy: all pieces picture side up, spread out, plus the empty frame.
+### 2. Piece sheet: photos of loose pieces (Flight of Fancy)
+For a puzzle we only have photos of in pieces, as for Flight of Fancy: all pieces picture side up,
+spread out, plus the empty frame.
 The model lists each piece's cells and tabs.
 
 ```
@@ -86,7 +87,43 @@ Here no edge is seen twice, so the checks are:
 The piece sheet is also the format the scanner saves after a solved sheet passes, as the record of the
 pieces in the module.
 
-### 3. The model call
+### 3. Unsolved sheet: the puzzle as sold (Puzzling Pets)
+The puzzle as it comes in the box: every piece but one in the frame, leaving a gap, and the last
+piece lying outside the board, where it won't fit the gap as it is. Our Puzzling Pets photo
+(`scans/puzzling_pets/puzzling_pets.jpg`, 1000×750, frame showing) has a 3-cell L-shaped gap, and the
+loose piece (a grey cat, 3 cells) lies on the box art.
+
+The sheet is a solved sheet with two additions: gap cells are written `.`, and the loose piece has
+cell lines under its `piece` line, as in a piece sheet. A piece with cell lines is loose; a piece
+without them is on the board.
+
+```
+name: Puzzling Pets
+piece A: White cat with a red collar
+...
+piece M: Grey cat                # the loose piece, as it lies in the photo
+  0,0 OI-I
+  1,0 -IO-
+  1,1 I-OO
+
+row: A:IO-- . . B:OI-O ...       # . is a gap cell
+row: ...
+top:    IOIOIOIO                 # needed wherever a gap cell touches the frame
+```
+
+Checks:
+1. The solved sheet checks (1 to 4) for the cells with pieces, except that a side facing a gap cell
+   is a tab (`I` or `O`) with nothing to pair it with.
+2. Where a gap cell touches the frame, the border line for that side must be given: there is no cell
+   tab to work it out from.
+3. The loose pieces have as many cells as the gap.
+4. `Puzzle(...)` accepts the result, with the board pieces cut out of the grid and the loose pieces
+   taken from their cell lines.
+5. **Tab balance**, as for a piece sheet: the loose piece and the sides around the gap are read only once.
+6. **Solve** with DLX. Unlike a solved photo, this is a real check: the puzzle must have a solution,
+   and the photographed layout is not one.
+
+### 4. The model call
 - `VisionModel` is a `Protocol`: `read(photos: Sequence[Path], kind: SheetKind) -> str` returns sheet
   text. The real one, `ClaudeVisionModel`, sends the photos to the Claude API with a prompt that
   explains the sheet, and asks for JSON that matches a schema (structured output). The JSON is then
@@ -102,12 +139,16 @@ pieces in the module.
   - `parse_piece_sheet(text: str) -> Puzzle` and `format_piece_sheet(puzzle: Puzzle) -> str`, which round-trip.
   - `tab_balance(puzzle: Puzzle) -> int`: 0 when tabs balance.
   - `write_module(puzzle: Puzzle, key: str) -> str`: the source of `<key>_puzzle.py`.
-  - `VisionModel` (Protocol), `SheetKind` (`Enum`: `SOLVED`, `PIECES`) and `ClaudeVisionModel`.
+  - `VisionModel` (Protocol), `SheetKind` (`Enum`: `SOLVED`, `PIECES`, `UNSOLVED`) and `ClaudeVisionModel`.
+  - `SolvedBoard` also holds gap cells (`None`) and the loose pieces; `parse_solved_sheet` reads both
+    solved and unsolved sheets.
 - New script `last-piece-scan` (in `[project.scripts]`):
-  - `last-piece-scan KEY PHOTO... [--pieces]` calls the model, writes `scans/KEY/sheet.txt`, then checks
-    and solves. A solved photo is the default; `--pieces` is for loose pieces.
+  - `last-piece-scan KEY PHOTO... [--pieces | --unsolved]` calls the model, writes `scans/KEY/sheet.txt`,
+    then checks and solves. A solved photo is the default; `--pieces` is for loose pieces, `--unsolved`
+    for the puzzle as sold.
   - `last-piece-scan KEY --sheet scans/KEY/sheet.txt` skips the model: check a hand-fixed sheet (the
-    kind is read from the sheet: `row:` lines mean solved).
+    kind is read from the sheet: `row:` lines mean solved or unsolved, and `.` cells or a piece with
+    cell lines mean unsolved).
   - On success, writes `scans/KEY/pieces.txt` (piece sheet) and `src/last_piece_puzzle/puzzles/KEY_puzzle.py`,
     and prints the number of solutions. It won't overwrite an existing module unless given `--force`.
 - Folder `scans/KEY/`: the photos and sheets. Photos are git-ignored; sheets are committed.
@@ -141,6 +182,14 @@ pieces in the module.
 - B-0008: `ClaudeVisionModel` sends the photos as base64 images with the prompt for the sheet kind, asks
   for JSON that matches that kind's schema, and turns the JSON into sheet text. A refusal, a cut-off
   answer or JSON that does not match raises `ValueError` with the reason; nothing is written.
+- B-0009: `parse_solved_sheet` also reads unsolved sheets: `.` cells are gaps, and a piece with cell
+  lines is loose. A side facing a gap must be `I` or `O`. It raises `ValueError` when a gap cell touches
+  the frame on a side with no border line, when the loose pieces' cell count differs from the gap's,
+  and when there are gap cells but no loose piece, or a loose piece but no gap.
+- B-0010: `to_puzzle()` gives the board pieces cut out of the grid and the loose pieces from their cell
+  lines, in sheet order. `grid` is only for a board with no gaps.
+- B-0011: For an unsolved sheet the scanner checks tab balance, then needs at least one DLX solution.
+  `--unsolved` asks the model for an unsolved sheet: gap cells and the loose piece with its cells.
 
 ## Acceptance tests
 - AT-0001: A solved sheet made from fixture `golfing_madness_solution_1` and `PUZZLE` (a test helper
@@ -162,6 +211,14 @@ pieces in the module.
 - AT-0008: `ClaudeVisionModel`, with the SDK client replaced by a stub: builds one request with every
   photo as an image block, turns valid JSON into sheet text, and raises `ValueError` on a refusal, on
   `max_tokens`, and on JSON that does not match (B-0008).
+- AT-0009: An unsolved sheet made from fixture 1 by taking out one piece (its cells become `.`, and it is
+  listed as loose with its cells) parses, and `to_puzzle()` gives a puzzle with the same pieces up to
+  rotation, the `PUZZLE` border and the 5 fixture solutions (B-0009, B-0010).
+- AT-0010: Bad unsolved sheets raise `ValueError`: a `-` facing a gap, a gap on the frame with no border
+  line, a loose piece with the wrong number of cells, a gap with no loose piece (B-0009).
+- AT-0011: With a fake model, `--unsolved` asks for `SheetKind.UNSOLVED` and writes the module from the
+  AT-0009 sheet; a sheet with one flipped tab on the loose piece stops at tab balance. `ClaudeVisionModel`
+  turns unsolved JSON into the same sheet text (B-0011).
 
 ## Trial (manual, not CI)
 Run the real model on the photo of the solved Golfing Madness, where the answer is known:
@@ -172,8 +229,8 @@ Run the real model on the photo of the solved Golfing Madness, where the answer 
 - The cost of the call.
 
 This decides whether the approach is good enough, and how much hand fixing to expect, before scanning
-Puzzling Pets and Flight of Fancy from their photos of loose pieces. For those there is no known answer,
-so the checks are tab balance and at least one solution.
+Puzzling Pets (unsolved) and Flight of Fancy (loose pieces). For those there is no known answer, so the
+checks are tab balance and at least one solution.
 
 ## Out of scope
 - Finding piece outlines with classic image processing (OpenCV and so on).
@@ -182,5 +239,6 @@ so the checks are tab balance and at least one solution.
 
 ## Decisions
 - The Golfing Madness photo is Anton's `photo_of_puzzle.JPG`, with the frame showing.
-- Puzzling Pets and Flight of Fancy are next, from photos of loose pieces with the frame showing.
+- Puzzling Pets is next, from a photo of the puzzle as sold (the unsolved sheet, added after review).
+- Flight of Fancy is from a photo of loose pieces with the frame showing (the piece sheet).
 - `anthropic` is approved as an optional `scan` extra.
