@@ -310,6 +310,16 @@ Follow-ups:
   there's no warning. For the trial sheet (`scans/golfing_madness_scan/sheet.txt`, committed as the
   record) it lists the real break and the false one, and warns about 1,614 solutions.
 
+### Progress (added 2026-10-26)
+A Gemini scan ran for a few hours and then failed, with nothing on screen to show where it was.
+
+- B-0018: The scanner prints timed progress lines to stderr (`[elapsed] message`): reading the photos
+  (model and photo count), the model's answer, the checks and the solve. While it waits on the model
+  or the solver it prints a "still waiting" line every minute (with the solutions found so far, for
+  the solver). stdout keeps only the results, as before.
+- AT-0015: A scan with a fake model prints the progress lines to stderr, and a long wait prints a
+  "still waiting" line (B-0018).
+
 ## Out of scope
 - Finding piece outlines with classic image processing (OpenCV and so on).
 - A UI for fixing sheets. A text editor and `--sheet` are enough.
