@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 from collections.abc import Sequence
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -296,6 +297,34 @@ def test_scan_writes_sheets_and_module(workdir: Path, capsys: pytest.CaptureFixt
     run(["test_key", "--sheet", str(folder / "sheet.txt"), "--force"], NoModel(), workdir)
     assert puzzle == load_module(module).PUZZLE
     assert len(model.calls) == 1
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0015")
+def test_scan_prints_progress(workdir: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    run(["test_key", "photo.jpg"], FakeModel(scan.format_solved_sheet(solved_board())), workdir)
+    out, err = capsys.readouterr()
+    lines = err.splitlines()
+    assert lines[0] == f"[0:00:00] Reading 1 photo with {scan.MODEL} (solved)"
+    assert [line.split("] ", 1)[1] for line in lines[1:]] == [
+        f"{scan.MODEL} answered",
+        f"Checking {Path('scans/test_key/sheet.txt')}",
+        "Solving (Algorithm X)",
+        "Solved",
+    ]
+    assert "[" not in out
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0015")
+def test_progress_prints_still_waiting(capsys: pytest.CaptureFixture[str]) -> None:
+    beat = threading.Event()
+
+    def status() -> str:
+        beat.set()
+        return "3 so far"
+
+    with scan.Progress().waiting("the model", status, every=0.01):
+        assert beat.wait(5)
+    assert "] Still waiting for the model (3 so far)" in capsys.readouterr().err
 
 
 @pytest.mark.spec("SPEC-0011", "AT-0005")

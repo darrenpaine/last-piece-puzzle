@@ -30,7 +30,11 @@ import argparse
 import base64
 import json
 import re
-from collections.abc import Iterator, Mapping, Sequence
+import sys
+import threading
+import time
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -901,6 +905,42 @@ def _field[T](value: object, what: str, kind: type[T]) -> T:
 # The command line
 
 MANY_SOLUTIONS = 20  # the puzzles in the series have only a few (B-0013)
+HEARTBEAT_SECONDS = 60.0
+
+
+class Progress:
+    """Timed progress lines on stderr, so a long scan shows where it is (B-0018)."""
+
+    def __init__(self) -> None:
+        self.started = time.monotonic()
+
+    def log(self, message: str) -> None:
+        seconds = int(time.monotonic() - self.started)
+        hours, rest = divmod(seconds, 3600)
+        clock = f"{hours}:{rest // 60:02}:{rest % 60:02}"
+        print(f"[{clock}] {message}", file=sys.stderr, flush=True)
+
+    @contextmanager
+    def waiting(
+        self,
+        what: str,
+        status: Callable[[], str] | None = None,
+        every: float = HEARTBEAT_SECONDS,
+    ) -> Iterator[None]:
+        """Log a "still waiting" line every `every` seconds until the block ends."""
+        done = threading.Event()
+
+        def beat() -> None:
+            while not done.wait(every):
+                self.log(f"Still waiting for {what}" + (f" ({status()})" if status else ""))
+
+        thread = threading.Thread(target=beat, daemon=True)
+        thread.start()
+        try:
+            yield
+        finally:
+            done.set()
+            thread.join()
 
 
 def check_sheet(text: str) -> tuple[Puzzle, SolvedBoard | None]:
@@ -950,7 +990,10 @@ def main(
     if bool(args.photos) == bool(args.sheet):
         parser.error("give photos, or --sheet, but not both")
 
+    progress = Progress()
+
     def fail(message: str) -> NoReturn:
+        progress.log("Stopped")
         parser.exit(1, f"last-piece-scan: {message}\n")
 
     module = (puzzles_dir or Path(puzzles.__file__).parent) / f"{args.key}_puzzle.py"
@@ -976,19 +1019,34 @@ def main(
                 if args.model == "gemini"
                 else ClaudeVisionModel()
             )
+        name = args.gemini_model if args.model == "gemini" else MODEL
+        count = len(args.photos)
+        progress.log(f"Reading {count} photo{'s' * (count != 1)} with {name} ({kind.name.lower()})")
         try:
-            text = model.read(args.photos, kind)
+            with progress.waiting(name):
+                text = model.read(args.photos, kind)
         except ValueError as error:
             fail(str(error))
+        progress.log(f"{name} answered")
         folder.mkdir(parents=True, exist_ok=True)
         sheet.write_text(text)
         print(f"Wrote {sheet}")
     fix = f"Fix {sheet}, then run: last-piece-scan {args.key} --sheet {sheet}"
+    progress.log(f"Checking {sheet}")
     try:
         puzzle, board = check_sheet(text)
     except ValueError as error:
         fail(f"{sheet}: {error}\n{fix}")
-    result = solver.solve(puzzle, method="exactcover")
+    progress.log("Solving (Algorithm X)")
+    solved = 0
+
+    def on_solution(number: int, found: solver.FoundSolution, /) -> None:
+        nonlocal solved
+        solved = number
+
+    with progress.waiting("the solver", lambda: f"{solved} solutions so far"):
+        result = solver.solve(puzzle, on_solution=on_solution, method="exactcover")
+    progress.log("Solved")
     found = [f.solution.grid for f in result.solutions]
     if not found:
         fail(f"{sheet}: the puzzle has no solution, so some tab or cell is wrong\n{fix}")
