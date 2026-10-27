@@ -320,6 +320,18 @@ A Gemini scan ran for a few hours and then failed, with nothing on screen to sho
 - AT-0015: A scan with a fake model prints the progress lines to stderr, and a long wait prints a
   "still waiting" line (B-0018).
 
+A second Gemini scan (Flight of Fancy, 2026-10-26) waited over 21 hours: the request had no timeout.
+
+- B-0019: `GeminiVisionModel` builds its client with a 15 minute timeout per request. The SDK
+  (google-genai 2.33) retries 429 and 5xx itself but not timeouts or lost connections in the
+  interactions API, so the model tries those up to 3 times, waiting 30 s and then 60 s and saying so
+  on stderr. After the last try it raises `ValueError` ("Gemini request failed: ..."), and an error
+  status from the interactions API raises `ValueError` ("Gemini API error: ..."), so the scanner
+  stops with a message instead of a traceback.
+- AT-0016: With `genai.Client` replaced by a recorder, the client gets the timeout. A stub that times
+  out twice then answers gives the sheet after 3 requests; one that always times out gives
+  `ValueError` after 3; an interactions error status gives `ValueError` at once (B-0019).
+
 ## Out of scope
 - Finding piece outlines with classic image processing (OpenCV and so on).
 - A UI for fixing sheets. A text editor and `--sheet` are enough.
