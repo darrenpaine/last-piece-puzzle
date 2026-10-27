@@ -146,9 +146,11 @@ and asks for JSON matching the same schemas, so everything after the call is unc
   "text", "mime_type": "application/json", "schema": SCHEMAS[kind]})`, and reads `output_text`. Each
   image item is `{"type": "image", "data": <base64>, "mime_type": ...}`. The exact names are checked
   against the installed SDK when coding.
-- Model: `gemini-3.1-pro-preview` by default (the most capable Gemini model now, but a preview that
-  Google may retire), or any other with `--gemini-model`, e.g. the stable `gemini-3.8-flash`.
-- The key comes from `GEMINI_API_KEY`. Google AI Studio's free tier is enough for a few scans.
+- Model: `gemini-3.5-flash` by default, or any other with `--gemini-model`. It was
+  `gemini-3.1-pro-preview` until the Flight of Fancy scan (2026-10-27): that preview hung for hours,
+  and `gemini-3.5-flash` answered in a minute and a half.
+- The key comes from `GOOGLE_API_KEY` (the SDK also reads `GEMINI_API_KEY`, but prefers
+  `GOOGLE_API_KEY`). Google AI Studio's free tier is enough for a few scans.
 - Inline requests can be up to 20 MB in total, so the 5 MB per photo limit for Claude also covers Gemini.
 - With two models, the same photo can be scanned by each and the two sheets compared: where they
   differ is a likely misread. That is done by hand (`diff`), not by the scanner.
@@ -309,6 +311,28 @@ Follow-ups:
 - AT-0012: For the AT-0001 sheet, the report lists the one Golfing Madness break (bottom right) and
   there's no warning. For the trial sheet (`scans/golfing_madness_scan/sheet.txt`, committed as the
   record) it lists the real break and the false one, and warns about 1,614 solutions.
+
+### Progress (added 2026-10-26)
+A Gemini scan ran for a few hours and then failed, with nothing on screen to show where it was.
+
+- B-0018: The scanner prints timed progress lines to stderr (`[elapsed] message`): reading the photos
+  (model and photo count), the model's answer, the checks and the solve. While it waits on the model
+  or the solver it prints a "still waiting" line every minute (with the solutions found so far, for
+  the solver). stdout keeps only the results, as before.
+- AT-0015: A scan with a fake model prints the progress lines to stderr, and a long wait prints a
+  "still waiting" line (B-0018).
+
+A second Gemini scan (Flight of Fancy, 2026-10-26) waited over 21 hours: the request had no timeout.
+
+- B-0019: `GeminiVisionModel` builds its client with a 15 minute timeout per request. The SDK
+  (google-genai 2.33) retries 429 and 5xx itself but not timeouts or lost connections in the
+  interactions API, so the model tries those up to 3 times, waiting 30 s and then 60 s and saying so
+  on stderr. After the last try it raises `ValueError` ("Gemini request failed: ..."), and an error
+  status from the interactions API raises `ValueError` ("Gemini API error: ..."), so the scanner
+  stops with a message instead of a traceback.
+- AT-0016: With `genai.Client` replaced by a recorder, the client gets the timeout. A stub that times
+  out twice then answers gives the sheet after 3 requests; one that always times out gives
+  `ValueError` after 3; an interactions error status gives `ValueError` at once (B-0019).
 
 ## Out of scope
 - Finding piece outlines with classic image processing (OpenCV and so on).

@@ -30,11 +30,15 @@ import argparse
 import base64
 import json
 import re
-from collections.abc import Iterator, Mapping, Sequence
+import sys
+import threading
+import time
+from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, Protocol
+from typing import TYPE_CHECKING, NoReturn, Protocol, cast
 
 from last_piece_puzzle import puzzles, solver
 from last_piece_puzzle.pieces import Bit, Border, Piece, Tab
@@ -43,6 +47,7 @@ from last_piece_puzzle.solution import Solution
 
 if TYPE_CHECKING:
     import anthropic
+    from anthropic.types.beta import BetaContentBlockParam, BetaImageBlockParam
     from google import genai
 
 TAB_CHARS = {Tab.IN: "I", Tab.OUT: "O", Tab.NONE: "-"}
@@ -625,7 +630,10 @@ class VisionModel(Protocol):
 
 
 MODEL = "claude-opus-5-5"
-GEMINI_MODEL = "gemini-3.1-pro-preview"  # a preview: pass another with --gemini-model if it retires
+GEMINI_MODEL = "gemini-3.5-flash"  # pass another with --gemini-model if it retires
+GEMINI_TIMEOUT_SECONDS = 15 * 60  # one request; without it a stalled request waits forever
+GEMINI_ATTEMPTS = 3  # tries for a request that times out or loses its connection
+GEMINI_RETRY_SECONDS = 30.0  # the wait before a retry, doubling each time
 MAX_PHOTO_BYTES = 5 * 1024 * 1024  # Claude's limit for one image; Gemini allows 20 MB a request
 MEDIA_TYPES = {
     ".jpg": "image/jpeg",
@@ -766,9 +774,7 @@ class ClaudeVisionModel:
 
         if self.client is None:
             self.client = anthropic.Anthropic()
-        content: list[anthropic.types.beta.BetaContentBlockParam] = [
-            image_block(photo) for photo in photos
-        ]
+        content: list[BetaContentBlockParam] = [image_block(photo) for photo in photos]
         content.append({"type": "text", "text": PROMPTS[kind]})
         try:
             with self.client.beta.messages.stream(
@@ -795,7 +801,7 @@ class ClaudeVisionModel:
         return sheet_from_text(text, kind)
 
 
-def image_block(photo: Path) -> anthropic.types.beta.BetaImageBlockParam:
+def image_block(photo: Path) -> BetaImageBlockParam:
     media_type, data = photo_data(photo)
     return {
         "type": "image",
@@ -817,26 +823,42 @@ class GeminiVisionModel:
     def read(self, photos: Sequence[Path], kind: SheetKind, /) -> str:
         from google import genai
 
+        # Not exported: the errors the interactions API raises, which are not genai.errors.APIError.
+        from google.genai._gaos.lib import compat_errors
+
         if self.client is None:
-            self.client = genai.Client()  # the key comes from GEMINI_API_KEY
+            self.client = genai.Client(  # the key comes from GOOGLE_API_KEY
+                http_options=genai.types.HttpOptions(timeout=GEMINI_TIMEOUT_SECONDS * 1000)  # ms
+            )
         items: list[dict[str, str]] = []
         for photo in photos:
             media_type, data = photo_data(photo)
             items.append({"type": "image", "data": data, "mime_type": media_type})
         items.append({"type": "text", "text": PROMPTS[kind]})
-        try:
-            interaction = self.client.interactions.create(
-                model=self.model,
-                input=items,
-                response_format={
-                    "type": "text",
-                    "mime_type": "application/json",
-                    "schema": SCHEMAS[kind],
-                },
-            )
-        except genai.errors.APIError as error:
-            raise ValueError(f"Gemini API error: {error}") from error
-        return sheet_from_text(getattr(interaction, "output_text", None), kind)
+        # The SDK retries 429 and 5xx itself, but not timeouts or lost connections (B-0019).
+        for attempt in range(1, GEMINI_ATTEMPTS + 1):
+            try:
+                interaction = self.client.interactions.create(
+                    model=self.model,
+                    input=items,
+                    response_format={
+                        "type": "text",
+                        "mime_type": "application/json",
+                        "schema": SCHEMAS[kind],
+                    },
+                )
+            except compat_errors.APIConnectionError as error:  # a timeout is one of these
+                failed = f"Gemini request failed: {type(error).__name__}: {error}"
+                if attempt == GEMINI_ATTEMPTS:
+                    raise ValueError(f"{failed} ({attempt} tries)") from error
+                wait = GEMINI_RETRY_SECONDS * 2 ** (attempt - 1)
+                print(f"{failed}; trying again in {wait:.0f} s", file=sys.stderr, flush=True)
+                time.sleep(wait)
+            except (genai.errors.APIError, compat_errors.APIError) as error:
+                raise ValueError(f"Gemini API error: {error}") from error
+            else:
+                return sheet_from_text(getattr(interaction, "output_text", None), kind)
+        raise ValueError(f"GEMINI_ATTEMPTS is {GEMINI_ATTEMPTS}: no request was made")
 
 
 def sheet_from_text(text: str | None, kind: SheetKind) -> str:
@@ -852,35 +874,35 @@ def sheet_from_text(text: str | None, kind: SheetKind) -> str:
 
 def sheet_from_json(data: object, kind: SheetKind) -> str:
     """Turn the model's JSON into sheet text; JSON of the wrong shape raises ValueError."""
-    answer = _field(data, "answer", dict)
-    border = _field(answer.get("border"), "border", dict)
+    answer = _dict(data, "answer")
+    border = _dict(answer.get("border"), "border")
     sides = {side: _field(border.get(side), f"border {side}", str) for side in BORDER_SIDES}
     name = _field(answer.get("name"), "name", str)
-    pieces = _field(answer.get("pieces"), "pieces", list)
+    pieces = _list(answer.get("pieces"), "pieces")
     if kind is SheetKind.PIECES:
         return piece_sheet_text(name, sides, [_json_piece(item) for item in pieces])
     names = [
         (_field(p.get("letter"), "letter", str), _field(p.get("name"), "name", str))
-        for p in (_field(p, "piece", dict) for p in pieces)
+        for p in (_dict(p, "piece") for p in pieces)
     ]
     loose: dict[str, list[tuple[int, int, str]]] = {}
     if kind is SheetKind.UNSOLVED:
-        for item in _field(answer.get("loose"), "loose", list):
+        for item in _list(answer.get("loose"), "loose"):
             letter, piece_name, cells = _json_piece(item)
             names.append((letter, piece_name))
             loose[letter] = cells
     rows = [
-        [_json_cell(_field(cell, "cell", dict)) for cell in _field(row, "row", list)]
-        for row in _field(answer.get("rows"), "rows", list)
+        [_json_cell(_dict(cell, "cell")) for cell in _list(row, "row")]
+        for row in _list(answer.get("rows"), "rows")
     ]
     return solved_sheet_text(name, names, rows, sides, loose)
 
 
 def _json_piece(item: object) -> tuple[str, str, list[tuple[int, int, str]]]:
-    piece = _field(item, "piece", dict)
+    piece = _dict(item, "piece")
     cells = [
         (_field(c.get("row"), "row", int), _field(c.get("col"), "col", int), _json_cell(c)[1])
-        for c in (_field(cell, "cell", dict) for cell in _field(piece.get("cells"), "cells", list))
+        for c in (_dict(cell, "cell") for cell in _list(piece.get("cells"), "cells"))
     ]
     return _field(piece.get("letter"), "letter", str), _field(piece.get("name"), "name", str), cells
 
@@ -892,6 +914,14 @@ def _json_cell(cell: Mapping[str, object]) -> tuple[str, str]:
     return letter, tabs
 
 
+def _dict(value: object, what: str) -> dict[str, object]:
+    return cast("dict[str, object]", _field(value, what, dict))
+
+
+def _list(value: object, what: str) -> list[object]:
+    return cast("list[object]", _field(value, what, list))
+
+
 def _field[T](value: object, what: str, kind: type[T]) -> T:
     if not isinstance(value, kind):
         raise ValueError(f"the answer's {what} is not a {kind.__name__}")
@@ -901,6 +931,42 @@ def _field[T](value: object, what: str, kind: type[T]) -> T:
 # The command line
 
 MANY_SOLUTIONS = 20  # the puzzles in the series have only a few (B-0013)
+HEARTBEAT_SECONDS = 60.0
+
+
+class Progress:
+    """Timed progress lines on stderr, so a long scan shows where it is (B-0018)."""
+
+    def __init__(self) -> None:
+        self.started = time.monotonic()
+
+    def log(self, message: str) -> None:
+        seconds = int(time.monotonic() - self.started)
+        hours, rest = divmod(seconds, 3600)
+        clock = f"{hours}:{rest // 60:02}:{rest % 60:02}"
+        print(f"[{clock}] {message}", file=sys.stderr, flush=True)
+
+    @contextmanager
+    def waiting(
+        self,
+        what: str,
+        status: Callable[[], str] | None = None,
+        every: float = HEARTBEAT_SECONDS,
+    ) -> Generator[None]:
+        """Log a "still waiting" line every `every` seconds until the block ends."""
+        done = threading.Event()
+
+        def beat() -> None:
+            while not done.wait(every):
+                self.log(f"Still waiting for {what}" + (f" ({status()})" if status else ""))
+
+        thread = threading.Thread(target=beat, daemon=True)
+        thread.start()
+        try:
+            yield
+        finally:
+            done.set()
+            thread.join()
 
 
 def check_sheet(text: str) -> tuple[Puzzle, SolvedBoard | None]:
@@ -950,7 +1016,10 @@ def main(
     if bool(args.photos) == bool(args.sheet):
         parser.error("give photos, or --sheet, but not both")
 
+    progress = Progress()
+
     def fail(message: str) -> NoReturn:
+        progress.log("Stopped")
         parser.exit(1, f"last-piece-scan: {message}\n")
 
     module = (puzzles_dir or Path(puzzles.__file__).parent) / f"{args.key}_puzzle.py"
@@ -976,19 +1045,34 @@ def main(
                 if args.model == "gemini"
                 else ClaudeVisionModel()
             )
+        name = args.gemini_model if args.model == "gemini" else MODEL
+        count = len(args.photos)
+        progress.log(f"Reading {count} photo{'s' * (count != 1)} with {name} ({kind.name.lower()})")
         try:
-            text = model.read(args.photos, kind)
+            with progress.waiting(name):
+                text = model.read(args.photos, kind)
         except ValueError as error:
             fail(str(error))
+        progress.log(f"{name} answered")
         folder.mkdir(parents=True, exist_ok=True)
         sheet.write_text(text)
         print(f"Wrote {sheet}")
     fix = f"Fix {sheet}, then run: last-piece-scan {args.key} --sheet {sheet}"
+    progress.log(f"Checking {sheet}")
     try:
         puzzle, board = check_sheet(text)
     except ValueError as error:
         fail(f"{sheet}: {error}\n{fix}")
-    result = solver.solve(puzzle, method="exactcover")
+    progress.log("Solving (Algorithm X)")
+    solved = 0
+
+    def on_solution(number: int, _: solver.FoundSolution, /) -> None:
+        nonlocal solved
+        solved = number
+
+    with progress.waiting("the solver", lambda: f"{solved} solutions so far"):
+        result = solver.solve(puzzle, on_solution=on_solution, method="exactcover")
+    progress.log("Solved")
     found = [f.solution.grid for f in result.solutions]
     if not found:
         fail(f"{sheet}: the puzzle has no solution, so some tab or cell is wrong\n{fix}")

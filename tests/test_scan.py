@@ -5,15 +5,19 @@ import os
 import re
 import subprocess
 import sys
+import threading
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import cast
 
 import anthropic
+import httpx
 import httpx2
 import pytest
 from google import genai
+from google.genai._gaos.lib import compat_errors
 from test_parallel import SMALL_PUZZLES
 
 from last_piece_puzzle import scan, solver
@@ -296,6 +300,34 @@ def test_scan_writes_sheets_and_module(workdir: Path, capsys: pytest.CaptureFixt
     run(["test_key", "--sheet", str(folder / "sheet.txt"), "--force"], NoModel(), workdir)
     assert puzzle == load_module(module).PUZZLE
     assert len(model.calls) == 1
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0015")
+def test_scan_prints_progress(workdir: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    run(["test_key", "photo.jpg"], FakeModel(scan.format_solved_sheet(solved_board())), workdir)
+    out, err = capsys.readouterr()
+    lines = err.splitlines()
+    assert lines[0] == f"[0:00:00] Reading 1 photo with {scan.MODEL} (solved)"
+    assert [line.split("] ", 1)[1] for line in lines[1:]] == [
+        f"{scan.MODEL} answered",
+        f"Checking {Path('scans/test_key/sheet.txt')}",
+        "Solving (Algorithm X)",
+        "Solved",
+    ]
+    assert "[" not in out
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0015")
+def test_progress_prints_still_waiting(capsys: pytest.CaptureFixture[str]) -> None:
+    beat = threading.Event()
+
+    def status() -> str:
+        beat.set()
+        return "3 so far"
+
+    with scan.Progress().waiting("the model", status, every=0.01):
+        assert beat.wait(5)
+    assert "] Still waiting for the model (3 so far)" in capsys.readouterr().err
 
 
 @pytest.mark.spec("SPEC-0011", "AT-0005")
@@ -795,6 +827,69 @@ def test_gemini_request_and_answer(photos: list[Path]) -> None:
 def test_gemini_bad_answers(photos: list[Path], client: StubGemini, message: str) -> None:
     with pytest.raises(ValueError, match=re.escape(message)):
         gemini_with(client).read(photos, SheetKind.SOLVED)
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0016")
+def test_gemini_client_has_timeout(photos: list[Path], monkeypatch: pytest.MonkeyPatch) -> None:
+    built: list[genai.types.HttpOptions] = []
+
+    def client(http_options: genai.types.HttpOptions) -> StubGemini:
+        built.append(http_options)
+        return StubGemini(board_json(solved_board()))
+
+    monkeypatch.setattr(genai, "Client", client)
+    scan.GeminiVisionModel().read(photos, SheetKind.SOLVED)
+    assert [options.timeout for options in built] == [scan.GEMINI_TIMEOUT_SECONDS * 1000]
+
+
+def timeout() -> compat_errors.APITimeoutError:
+    return compat_errors.APITimeoutError(httpx.Request("POST", "https://example.com"))
+
+
+class FlakyGemini(StubGemini):
+    """Times out on the first `failures` requests, then answers."""
+
+    def __init__(self, failures: int) -> None:
+        super().__init__(board_json(solved_board()))
+        self.failures = failures
+
+    def create(self, **request: object) -> SimpleNamespace:
+        if len(self.requests) < self.failures:
+            self.requests.append(request)
+            raise timeout()
+        return super().create(**request)
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0016")
+def test_gemini_retries_timeouts(
+    photos: list[Path], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    waits: list[float] = []
+    monkeypatch.setattr(time, "sleep", waits.append)
+    client = FlakyGemini(failures=2)
+    assert gemini_with(client).read(photos, SheetKind.SOLVED) == scan.format_solved_sheet(
+        solved_board()
+    )
+    assert len(client.requests) == 3
+    assert waits == [30, 60]
+    assert "APITimeoutError" in capsys.readouterr().err
+
+    client = FlakyGemini(failures=3)
+    with pytest.raises(ValueError, match=r"Gemini request failed: APITimeoutError.*\(3 tries\)"):
+        gemini_with(client).read(photos, SheetKind.SOLVED)
+    assert len(client.requests) == 3
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0016")
+def test_gemini_interactions_error_status(photos: list[Path]) -> None:
+    request = httpx.Request("POST", "https://example.com")
+    body = {"error": {"status": "UNAVAILABLE"}}
+    response = httpx.Response(503, request=request)
+    error = compat_errors.APIError.generate(503, body, None, response)
+    client = StubGemini(error=error)
+    with pytest.raises(ValueError, match="Gemini API error: "):
+        gemini_with(client).read(photos, SheetKind.SOLVED)
+    assert len(client.requests) == 1
 
 
 class RecordingModel:
