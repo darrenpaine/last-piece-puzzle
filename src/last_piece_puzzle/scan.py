@@ -828,7 +828,7 @@ class GeminiVisionModel:
         from google.genai._gaos.lib import compat_errors
 
         if self.client is None:
-            self.client = genai.Client(  # the key comes from GEMINI_API_KEY
+            self.client = genai.Client(  # the key comes from GOOGLE_API_KEY
                 http_options=genai.types.HttpOptions(timeout=GEMINI_TIMEOUT_SECONDS * 1000)  # ms
             )
         items: list[dict[str, str]] = []

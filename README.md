@@ -143,13 +143,16 @@ there and the solver picks it up.
 The scanner turns a photo of a puzzle into a puzzle module. A vision model, Claude or Gemini, reads
 the photo and writes a **sheet**: a short text file that lists the frame's tabs, and the cells, tabs
 and picture of each piece. The scanner checks the sheet, solves it, and only then writes the module.
+If no puzzle module is produced, check the sheet against the photo and read any errors the scanner
+reported (step 3). Photos with high resolution and good contrast help the model read the tabs
+accurately.
 
 1. Install the scanner's extra packages and set an API key for the model you want to use:
 
    ```
    uv sync --extra scan
    export ANTHROPIC_API_KEY=...    # for Claude (the default), or
-   export GEMINI_API_KEY=...       # for Gemini, with --model gemini
+   export GOOGLE_API_KEY=...       # for Gemini, with --model gemini
    ```
 
 2. Put the photo in `scans/<key>/` (photos are not committed) and run the scanner. Use the option
