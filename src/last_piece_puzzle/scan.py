@@ -630,6 +630,9 @@ class VisionModel(Protocol):
 
 MODEL = "claude-opus-5-5"
 GEMINI_MODEL = "gemini-3.1-pro-preview"  # a preview: pass another with --gemini-model if it retires
+GEMINI_TIMEOUT_SECONDS = 15 * 60  # one request; without it a stalled request waits forever
+GEMINI_ATTEMPTS = 3  # tries for a request that times out or loses its connection
+GEMINI_RETRY_SECONDS = 30.0  # the wait before a retry, doubling each time
 MAX_PHOTO_BYTES = 5 * 1024 * 1024  # Claude's limit for one image; Gemini allows 20 MB a request
 MEDIA_TYPES = {
     ".jpg": "image/jpeg",
@@ -821,25 +824,40 @@ class GeminiVisionModel:
     def read(self, photos: Sequence[Path], kind: SheetKind, /) -> str:
         from google import genai
 
+        # Not exported: the errors the interactions API raises, which are not genai.errors.APIError.
+        from google.genai._gaos.lib import compat_errors
+
         if self.client is None:
-            self.client = genai.Client()  # the key comes from GEMINI_API_KEY
+            self.client = genai.Client(  # the key comes from GEMINI_API_KEY
+                http_options=genai.types.HttpOptions(timeout=GEMINI_TIMEOUT_SECONDS * 1000)  # ms
+            )
         items: list[dict[str, str]] = []
         for photo in photos:
             media_type, data = photo_data(photo)
             items.append({"type": "image", "data": data, "mime_type": media_type})
         items.append({"type": "text", "text": PROMPTS[kind]})
-        try:
-            interaction = self.client.interactions.create(
-                model=self.model,
-                input=items,
-                response_format={
-                    "type": "text",
-                    "mime_type": "application/json",
-                    "schema": SCHEMAS[kind],
-                },
-            )
-        except genai.errors.APIError as error:
-            raise ValueError(f"Gemini API error: {error}") from error
+        # The SDK retries 429 and 5xx itself, but not timeouts or lost connections (B-0019).
+        for attempt in range(1, GEMINI_ATTEMPTS + 1):
+            try:
+                interaction = self.client.interactions.create(
+                    model=self.model,
+                    input=items,
+                    response_format={
+                        "type": "text",
+                        "mime_type": "application/json",
+                        "schema": SCHEMAS[kind],
+                    },
+                )
+                break
+            except compat_errors.APIConnectionError as error:  # a timeout is one of these
+                failed = f"Gemini request failed: {type(error).__name__}: {error}"
+                if attempt == GEMINI_ATTEMPTS:
+                    raise ValueError(f"{failed} ({attempt} tries)") from error
+                wait = GEMINI_RETRY_SECONDS * 2 ** (attempt - 1)
+                print(f"{failed}; trying again in {wait:.0f} s", file=sys.stderr, flush=True)
+                time.sleep(wait)
+            except (genai.errors.APIError, compat_errors.APIError) as error:
+                raise ValueError(f"Gemini API error: {error}") from error
         return sheet_from_text(getattr(interaction, "output_text", None), kind)
 
 
