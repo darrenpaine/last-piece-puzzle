@@ -21,3 +21,6 @@ scans/**/*.[jJ][pP][gG]
 scans/**/*.[jJ][pP][eE][gG]
 scans/**/*.[pP][nN][gG]
 scans/**/*.[hH][eE][iI][cC]
+
+# Logs, e.g. a scan run saved with tee
+*.log

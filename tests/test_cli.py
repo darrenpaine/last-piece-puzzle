@@ -63,10 +63,11 @@ def test_unknown_key_exits_2(solved: list[str], capsys: pytest.CaptureFixture[st
 def test_menu_number_solves(
     monkeypatch: pytest.MonkeyPatch, solved: list[str], capsys: pytest.CaptureFixture[str]
 ) -> None:
-    script_input(monkeypatch, ["1"])
+    number = puzzles.available().index("golfing_madness") + 1
+    script_input(monkeypatch, [str(number)])
     main([])
     out = capsys.readouterr().out
-    assert "1. Golfing Madness (golfing_madness)" in out
+    assert f"{number}. Golfing Madness (golfing_madness)" in out
     assert f"Choose a puzzle (1-{len(puzzles.available())}, q to quit): " in out
     assert solved == ["Golfing Madness"]
 
@@ -83,7 +84,7 @@ def test_menu_quit(monkeypatch: pytest.MonkeyPatch, solved: list[str], answers: 
 def test_menu_invalid_then_valid(
     monkeypatch: pytest.MonkeyPatch, solved: list[str], capsys: pytest.CaptureFixture[str]
 ) -> None:
-    script_input(monkeypatch, ["x", "1"])
+    script_input(monkeypatch, ["x", str(puzzles.available().index("golfing_madness") + 1)])
     main([])
     assert capsys.readouterr().out.count("Not a valid choice.") == 1
     assert solved == ["Golfing Madness"]

@@ -1,0 +1,92 @@
+# Tabs: I inney, O outey, - none (faces the same piece); order north, west, south, east.
+name: Birds Puzzle
+
+top:    OOIOIOIO
+left:   IIIIIIII
+right:  IOOIIIII
+bottom: IIIIIIII
+
+piece A: Toucan with yellow beak
+  0,0 II--
+  0,1 O-IO
+  1,0 -IIO
+
+piece B: Swallows flying downward
+  0,1 OI-I
+  1,1 -I-O
+  2,0 OII-
+  2,1 --OI
+
+piece C: Red quetzal and white seabird
+  0,0 OI-I
+  1,0 -I-I
+  2,0 -IO-
+  2,1 I-IO
+
+piece D: Red bird and flying crane
+  0,0 OI-O
+  1,0 -II-
+  1,1 O--I
+  1,2 O-OO
+
+piece E: Red heron lying sideways
+  0,0 IIO-
+  0,1 O-I-
+  0,2 O-OI
+  1,1 -III
+
+piece F: Blue hummingbirds and seagull
+  0,0 OI-I
+  1,0 -I--
+  1,1 I-IO
+  2,0 -IIO
+
+piece G: Red bird flying left
+  0,1 II-I
+  1,0 III-
+  1,1 -O-I
+  2,1 -IOI
+
+piece H: Red and blue perching birds
+  0,1 OI-I
+  1,0 IIO-
+  1,1 ---O
+  2,1 -OOI
+
+piece I: Flamingo and swallow
+  0,0 OI-I
+  1,0 -I--
+  1,1 I--O
+  2,1 -IOI
+
+piece J: Long-tailed black bird and toucan
+  0,1 OI-O
+  1,1 -I-I
+  2,0 OIO-
+  2,1 ---O
+  3,0 -OOO
+
+piece K: Red and blue swallows
+  0,0 OI-I
+  1,0 -I-O
+  2,0 -I--
+  2,1 I-OI
+
+piece L: Red bird top right, seabird bottom left
+  0,1 II-O
+  1,0 II--
+  1,1 -O-I
+  2,0 -OOI
+
+piece M: Seagull flying right
+  0,0 OI-O
+  1,0 -I--
+  1,1 I-OI
+  2,1 -IOO
+
+piece N: Pelican and colorful tropical birds
+  0,0 OI-I
+  1,0 -I--
+  1,1 I--O
+  2,1 -I--
+  2,2 I-OO

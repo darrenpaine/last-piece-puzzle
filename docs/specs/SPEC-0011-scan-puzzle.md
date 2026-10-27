@@ -334,6 +334,26 @@ A second Gemini scan (Flight of Fancy, 2026-10-26) waited over 21 hours: the req
   out twice then answers gives the sheet after 3 requests; one that always times out gives
   `ValueError` after 3; an interactions error status gives `ValueError` at once (B-0019).
 
+### Flight of Fancy (2026-10-27)
+Photos of the loose pieces (`pieces.jpg`, 1000×710) and the empty frame (`border.jpg`, 600×586),
+read as a piece sheet (`--pieces`).
+
+- **Gemini** (`gemini-3.5-flash`, `scans/flight_of_fancy/sheet.txt`, kept as the record) found all
+  14 pieces but gave most of the 5-cell pieces 4 cells (57 cells in all), read the left and bottom
+  frame as all `I`, and its tabs follow no pattern. The scanner stopped at the cell count.
+- **Claude Code** (`scans/flight_of_fancy/sheet_claude.txt`) read each piece's shape from enlarged
+  crops of the photo, and set the tabs from the pattern Golfing Madness and Puzzling Pets share:
+  each cell is all outeys or all inneys, as on a checkerboard, and a few clear tabs per piece fix its
+  phase. The frame is the same as Puzzling Pets, with the break at bottom tab 6, and the one piece
+  break is on the 3-cell piece, as in both: piece A's corner cell has an outey on its west side.
+  Darren checked it against the pieces, and it was all correct.
+- The three puzzles share: one 3-cell piece and the rest 4 and 5 cells, the same frame, exactly two
+  breaks (bottom tab 6 and one tab of the 3-cell piece), and 5 solutions.
+
+- AT-0017: `scans/flight_of_fancy/sheet_claude.txt` passes and gives a module equal to the committed
+  `flight_of_fancy_puzzle.py`, with 5 solutions, the breaks `bottom tab 6 is I` and `piece A cell 0,0
+  west is O`, and no warning. The committed `pieces.txt` matches the sheet (B-0005, B-0006, B-0012).
+
 ## Out of scope
 - Finding piece outlines with classic image processing (OpenCV and so on).
 - A UI for fixing sheets. A text editor and `--sheet` are enough.
