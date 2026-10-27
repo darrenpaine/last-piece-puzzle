@@ -33,12 +33,12 @@ import re
 import sys
 import threading
 import time
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, Protocol
+from typing import TYPE_CHECKING, NoReturn, Protocol, cast
 
 from last_piece_puzzle import puzzles, solver
 from last_piece_puzzle.pieces import Bit, Border, Piece, Tab
@@ -47,6 +47,7 @@ from last_piece_puzzle.solution import Solution
 
 if TYPE_CHECKING:
     import anthropic
+    from anthropic.types.beta import BetaContentBlockParam, BetaImageBlockParam
     from google import genai
 
 TAB_CHARS = {Tab.IN: "I", Tab.OUT: "O", Tab.NONE: "-"}
@@ -773,9 +774,7 @@ class ClaudeVisionModel:
 
         if self.client is None:
             self.client = anthropic.Anthropic()
-        content: list[anthropic.types.beta.BetaContentBlockParam] = [
-            image_block(photo) for photo in photos
-        ]
+        content: list[BetaContentBlockParam] = [image_block(photo) for photo in photos]
         content.append({"type": "text", "text": PROMPTS[kind]})
         try:
             with self.client.beta.messages.stream(
@@ -802,7 +801,7 @@ class ClaudeVisionModel:
         return sheet_from_text(text, kind)
 
 
-def image_block(photo: Path) -> anthropic.types.beta.BetaImageBlockParam:
+def image_block(photo: Path) -> BetaImageBlockParam:
     media_type, data = photo_data(photo)
     return {
         "type": "image",
@@ -848,7 +847,6 @@ class GeminiVisionModel:
                         "schema": SCHEMAS[kind],
                     },
                 )
-                break
             except compat_errors.APIConnectionError as error:  # a timeout is one of these
                 failed = f"Gemini request failed: {type(error).__name__}: {error}"
                 if attempt == GEMINI_ATTEMPTS:
@@ -858,7 +856,9 @@ class GeminiVisionModel:
                 time.sleep(wait)
             except (genai.errors.APIError, compat_errors.APIError) as error:
                 raise ValueError(f"Gemini API error: {error}") from error
-        return sheet_from_text(getattr(interaction, "output_text", None), kind)
+            else:
+                return sheet_from_text(getattr(interaction, "output_text", None), kind)
+        raise ValueError(f"GEMINI_ATTEMPTS is {GEMINI_ATTEMPTS}: no request was made")
 
 
 def sheet_from_text(text: str | None, kind: SheetKind) -> str:
@@ -874,35 +874,35 @@ def sheet_from_text(text: str | None, kind: SheetKind) -> str:
 
 def sheet_from_json(data: object, kind: SheetKind) -> str:
     """Turn the model's JSON into sheet text; JSON of the wrong shape raises ValueError."""
-    answer = _field(data, "answer", dict)
-    border = _field(answer.get("border"), "border", dict)
+    answer = _dict(data, "answer")
+    border = _dict(answer.get("border"), "border")
     sides = {side: _field(border.get(side), f"border {side}", str) for side in BORDER_SIDES}
     name = _field(answer.get("name"), "name", str)
-    pieces = _field(answer.get("pieces"), "pieces", list)
+    pieces = _list(answer.get("pieces"), "pieces")
     if kind is SheetKind.PIECES:
         return piece_sheet_text(name, sides, [_json_piece(item) for item in pieces])
     names = [
         (_field(p.get("letter"), "letter", str), _field(p.get("name"), "name", str))
-        for p in (_field(p, "piece", dict) for p in pieces)
+        for p in (_dict(p, "piece") for p in pieces)
     ]
     loose: dict[str, list[tuple[int, int, str]]] = {}
     if kind is SheetKind.UNSOLVED:
-        for item in _field(answer.get("loose"), "loose", list):
+        for item in _list(answer.get("loose"), "loose"):
             letter, piece_name, cells = _json_piece(item)
             names.append((letter, piece_name))
             loose[letter] = cells
     rows = [
-        [_json_cell(_field(cell, "cell", dict)) for cell in _field(row, "row", list)]
-        for row in _field(answer.get("rows"), "rows", list)
+        [_json_cell(_dict(cell, "cell")) for cell in _list(row, "row")]
+        for row in _list(answer.get("rows"), "rows")
     ]
     return solved_sheet_text(name, names, rows, sides, loose)
 
 
 def _json_piece(item: object) -> tuple[str, str, list[tuple[int, int, str]]]:
-    piece = _field(item, "piece", dict)
+    piece = _dict(item, "piece")
     cells = [
         (_field(c.get("row"), "row", int), _field(c.get("col"), "col", int), _json_cell(c)[1])
-        for c in (_field(cell, "cell", dict) for cell in _field(piece.get("cells"), "cells", list))
+        for c in (_dict(cell, "cell") for cell in _list(piece.get("cells"), "cells"))
     ]
     return _field(piece.get("letter"), "letter", str), _field(piece.get("name"), "name", str), cells
 
@@ -912,6 +912,14 @@ def _json_cell(cell: Mapping[str, object]) -> tuple[str, str]:
     letter = _field(cell.get("letter", ""), "letter", str)
     tabs = "".join(_field(cell.get(side), side, str) for side, _, _ in CELL_SIDES)
     return letter, tabs
+
+
+def _dict(value: object, what: str) -> dict[str, object]:
+    return cast("dict[str, object]", _field(value, what, dict))
+
+
+def _list(value: object, what: str) -> list[object]:
+    return cast("list[object]", _field(value, what, list))
 
 
 def _field[T](value: object, what: str, kind: type[T]) -> T:
@@ -944,7 +952,7 @@ class Progress:
         what: str,
         status: Callable[[], str] | None = None,
         every: float = HEARTBEAT_SECONDS,
-    ) -> Iterator[None]:
+    ) -> Generator[None]:
         """Log a "still waiting" line every `every` seconds until the block ends."""
         done = threading.Event()
 
@@ -1058,7 +1066,7 @@ def main(
     progress.log("Solving (Algorithm X)")
     solved = 0
 
-    def on_solution(number: int, found: solver.FoundSolution, /) -> None:
+    def on_solution(number: int, _: solver.FoundSolution, /) -> None:
         nonlocal solved
         solved = number
 
