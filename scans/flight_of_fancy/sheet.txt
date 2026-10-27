@@ -1,4 +1,6 @@
 # Tabs: I inney, O outey, - none (faces the same piece); order north, west, south, east.
+# Read by gemini-3.5-flash - contains ERRORS, maybe due to the resolution of the photos.
+# See the sheet_claude.txt for an accurate set.
 name: Birds Puzzle
 
 top:    OOIOIOIO
