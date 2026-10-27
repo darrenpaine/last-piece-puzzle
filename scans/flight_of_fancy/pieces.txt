@@ -1,0 +1,99 @@
+# Tabs: I inney, O outey, - none (faces the same piece); order north, west, south, east.
+name: Flight of Fancy
+
+top:    IOIOIOIO
+left:   IOIOIOIO
+right:  OIOIOIOI
+bottom: OIOIOIII
+
+piece A: Toucan with yellow beak
+  0,0 IO--
+  0,1 O-OO
+  1,0 -OOO
+
+piece B: Brown swallow and green bird
+  0,1 II-I
+  1,1 -O-O
+  2,0 OOO-
+  2,1 --II
+
+piece C: Red quetzal and white seabird
+  0,0 OO-O
+  1,0 -I-I
+  2,0 -OO-
+  2,1 I-II
+
+piece D: Red bird and flying crane
+  0,0 OO-O
+  1,0 -II-
+  1,1 O--O
+  2,1 -III
+
+piece E: Red heron
+  0,0 III-
+  0,1 O---
+  0,2 I-II
+  1,1 -III
+
+piece F: Seagull and green hummingbird
+  0,0 OO-O
+  1,0 -I--
+  2,0 -O-O
+  3,0 -III
+  1,1 O-OO
+
+piece G: Red hummingbird and green bird
+  0,1 II-I
+  1,0 III-
+  1,1 ---O
+  2,1 -I-I
+  3,1 -OOO
+
+piece H: Parrot, red bird and blue bird
+  0,1 OO-O
+  1,0 OO--
+  1,1 --II
+  2,0 -I-I
+  3,0 -OOO
+
+piece I: Hummingbird and flamingo
+  0,0 II-I
+  1,0 -O-O
+  2,0 -II-
+  2,1 O--O
+  3,1 -III
+
+piece J: Long-tailed black bird and toucan
+  0,1 OO-O
+  1,1 -I-I
+  2,1 -O-O
+  3,0 OOO-
+  3,1 --II
+
+piece K: Red bird and swallow
+  0,0 II-I
+  1,0 -O-O
+  2,0 -I-I
+  3,0 -OO-
+  3,1 I-II
+
+piece L: Red bird and white seabird
+  0,1 II--
+  0,2 O-OO
+  1,1 -O-O
+  2,0 OOO-
+  2,1 --II
+
+piece M: White seabird and red dove
+  0,0 III-
+  0,1 O--O
+  1,1 -I-I
+  2,1 -OO-
+  2,2 I-II
+
+piece N: Kingfisher, pelican and yellow bird
+  0,0 OO-O
+  1,0 -II-
+  1,1 O--O
+  2,1 -II-
+  2,2 O-OO
