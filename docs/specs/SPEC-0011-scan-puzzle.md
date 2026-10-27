@@ -146,8 +146,9 @@ and asks for JSON matching the same schemas, so everything after the call is unc
   "text", "mime_type": "application/json", "schema": SCHEMAS[kind]})`, and reads `output_text`. Each
   image item is `{"type": "image", "data": <base64>, "mime_type": ...}`. The exact names are checked
   against the installed SDK when coding.
-- Model: `gemini-3.1-pro-preview` by default (the most capable Gemini model now, but a preview that
-  Google may retire), or any other with `--gemini-model`, e.g. the stable `gemini-3.8-flash`.
+- Model: `gemini-3.5-flash` by default, or any other with `--gemini-model`. It was
+  `gemini-3.1-pro-preview` until the Flight of Fancy scan (2026-10-27): that preview hung for hours,
+  and `gemini-3.5-flash` answered in a minute and a half.
 - The key comes from `GEMINI_API_KEY`. Google AI Studio's free tier is enough for a few scans.
 - Inline requests can be up to 20 MB in total, so the 5 MB per photo limit for Claude also covers Gemini.
 - With two models, the same photo can be scanned by each and the two sheets compared: where they

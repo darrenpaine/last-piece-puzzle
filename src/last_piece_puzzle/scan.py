@@ -629,7 +629,7 @@ class VisionModel(Protocol):
 
 
 MODEL = "claude-opus-5-5"
-GEMINI_MODEL = "gemini-3.1-pro-preview"  # a preview: pass another with --gemini-model if it retires
+GEMINI_MODEL = "gemini-3.5-flash"  # pass another with --gemini-model if it retires
 GEMINI_TIMEOUT_SECONDS = 15 * 60  # one request; without it a stalled request waits forever
 GEMINI_ATTEMPTS = 3  # tries for a request that times out or loses its connection
 GEMINI_RETRY_SECONDS = 30.0  # the wait before a retry, doubling each time
