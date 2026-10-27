@@ -976,3 +976,24 @@ def test_inneys_inside_the_board_are_allowed_but_warned(
     assert scan.touching_inneys(scan.parse_solved_sheet(scan.format_solved_sheet(inside))) == [
         "cell (0, 2) E east and cell (0, 3) H west"
     ]
+
+
+# Flight of Fancy from loose pieces: the sheet Claude Code read, checked against the pieces
+
+FLIGHT = ROOT / "scans" / "flight_of_fancy"
+
+
+@pytest.mark.spec("SPEC-0011", "AT-0017")
+def test_flight_of_fancy_sheet(workdir: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    run(["flight_of_fancy", "--sheet", str(FLIGHT / "sheet_claude.txt")], NoModel(), workdir)
+    out = capsys.readouterr().out
+    assert "5 solutions found." in out
+    assert "bottom tab 6 is I" in out and "piece A cell 0,0 west is O" in out
+    assert "Warning" not in out
+    module = workdir / "puzzles" / "flight_of_fancy_puzzle.py"
+    committed = ROOT / "src" / "last_piece_puzzle" / "puzzles" / "flight_of_fancy_puzzle.py"
+    assert module.read_text() == committed.read_text()
+    assert (workdir / "scans" / "flight_of_fancy" / "pieces.txt").read_text() == (
+        FLIGHT / "pieces.txt"
+    ).read_text()
+    assert len(grids(load_module(module).PUZZLE)) == 5
